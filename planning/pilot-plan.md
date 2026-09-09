@@ -2,7 +2,34 @@
 
 ## TODO:
 
-Look more into whether we're going to buffer output from the API. vLLM will buffer, and there may be issues here. I'm not sure of the full implications.
+_Some notes on budgeting and streaming output_
+
+Need to decide streaming and budgeting.
+
+Students will gripe if time-to-first-token is long.
+
+Budgeting (enforcement, checked before calling vLLM, soft cap so students can go over during request and next request is denied not current):
+
+Budget model may be: on
+
+- Request count; simple but very inaccurate
+- Input tokens only; easy implementation, no need to intercept output
+- Input + output tokens
+
+For output capture:
+
+.NET API calls vLLM with stream: true, relays chunks to the client as they arrive (read/write loop, no buffering).
+Count completion tokens as chunks pass through (via usage field if requested, or one token per content chunk as fallback).
+Write the usage record when the loop ends, regardless of whether the client disconnected first.
+
+Considerations:
+
+Disable response compression and any buffering middleware in ASP.NET Core for this endpoint.
+
+- TODO: what are the downsides?
+  Whatever proxy sits in front of the .NET API (Caddy probably) needs buffering disabled and a read timeout longer than generation time — this is the part that silently breaks streaming if missed.
+  Test through the actual reverse proxy before considering it done; local dotnet run won't surface the buffering issue.
+  Worst-case failure: a disconnect mid-stream undercounts that request's output tokens. Not a big deal.
 
 ## Goal
 

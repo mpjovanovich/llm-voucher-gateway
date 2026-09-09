@@ -42,7 +42,7 @@ ASP.NET, no auth, no vouchers. Accepts `/v1/chat/completions`, forwards to vLLM,
 
 **Done when:** the harness can't tell the difference.
 
-**Risk — the real one:** ASP.NET buffering the response. A harness against a buffering proxy looks hung, not broken, and it's a miserable thing to diagnose later with auth and vouchers in the way. Prove it here while there's nothing else to blame.
+**Risk:** ASP.NET buffering the response. A harness against a buffering proxy looks hung, not broken, and it's a miserable thing to diagnose later with auth and vouchers in the way. Prove it here while there's nothing else to blame.
 
 ---
 
