@@ -1,0 +1,23 @@
+# Requires host to have NVIDIA GPU.
+# Requires NVIDIA Container Toolkit on the host.
+# Uses a tiny model for the proof of concept.
+
+services:
+  llm-server:
+    image: vllm/vllm-openai:v0.29.0
+    ipc: host
+    ports:
+      - "8000:8000"
+    volumes:
+      - huggingface-cache:/root/.cache/huggingface
+    command: --model Qwen/Qwen2.5-0.5B-Instruct
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  huggingface-cache:
