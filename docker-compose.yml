@@ -1,7 +1,29 @@
-# Requires host to have NVIDIA GPU.
-# Requires NVIDIA Container Toolkit on the host.
+# Requires host to have NVIDIA GPU and NVIDIA Container Toolkit installed:
+#   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.htm
 # Uses a tiny model for the proof of concept.
 
+# Once this is running:
+# List models: http://localhost:8000/v1/models
+
+# Example request:
+# curl http://localhost:8000/v1/chat/completions \
+#     -H "Content-Type: application/json" \
+#     -d '{
+#       "model": "Qwen/Qwen2.5-0.5B-Instruct",
+#       "messages": [{"role": "user", "content": "Say hello in one sentence."}]
+#     }'
+
+# Streaming request (returns response in chunks):
+# curl -N http://localhost:8000/v1/chat/completions \
+#     -H "Content-Type: application/json" \
+#     -d '{
+#       "model": "Qwen/Qwen2.5-0.5B-Instruct",
+#       "messages": [{"role": "user", "content": "Say hello in one sentence."}],
+#       "stream": true
+#     }'
+
+# Note that this is very specific for the developer's machine
+# It's not meant to be a general purpose setup.
 services:
   llm-server:
     image: vllm/vllm-openai:v0.29.0
@@ -10,7 +32,11 @@ services:
       - "8000:8000"
     volumes:
       - huggingface-cache:/root/.cache/huggingface
-    command: --model Qwen/Qwen2.5-0.5B-Instruct
+    environment:
+      # WSL2 kernel supports pinned memory (needed for vLLM's UVA buffers)
+      # but vLLM keeps it opt-in on WSL2 by default; enable it explicitly.
+      - VLLM_WSL2_ENABLE_PIN_MEMORY=1
+    command: --model Qwen/Qwen2.5-0.5B-Instruct --gpu-memory-utilization 0.85
     deploy:
       resources:
         reservations:

@@ -18,16 +18,15 @@ Development may happens across two machine hardware profiles, and the roadmap de
 
 ## 1. vLLM running on a host machine with an NVIDIA GPU
 
-Docker Compose, tiny model (Qwen2.5-0.5B-Instruct), GPU passthrough. **This milestone happens at the GPU box, not on the laptop.**
+Docker Compose, tiny model (Qwen2.5-0.5B-Instruct), GPU passthrough. Requires a host with an NVIDIA GPU.
 
 - `curl /v1/models` returns the served model
 - `curl /v1/chat/completions` returns valid JSON
 - Same request with `"stream": true` returns SSE chunks ending in `[DONE]`
-- Bind to the LAN rather than loopback; Tailscale on both machines; confirm the laptop can reach the endpoint
 
 ### Capture set
 
-Everything the laptop-side milestones will be built against. Capture generously — anything missed here is a return trip.
+Everything later milestones will be built against. Capture generously — anything missed here is a return trip.
 
 - Non-streaming response
 - Streaming response, **including the final chunk**: where `finish_reason` lands, and whether `usage` appears there
@@ -36,7 +35,7 @@ Everything the laptop-side milestones will be built against. Capture generously 
 - `/openapi.json` from the running instance, committed to the repo
 - The pinned vLLM image tag, recorded
 
-**Done when:** the full capture set is committed, and the laptop can reach the running instance over the tunnel.
+**Done when:** the full capture set is committed.
 
 **Risk:** NVIDIA Container Toolkit and `ipc: host`. If GPU passthrough is going to cause problems, it will happen here.
 
@@ -46,16 +45,16 @@ Everything the laptop-side milestones will be built against. Capture generously 
 
 ## 1b. Development environment
 
-What makes Milestones 4 through 8 possible away from the GPU box.
+What makes Milestones 4 through 8 possible without a live GPU.
 
 - Fixture stub server replaying the captured responses, streaming included
 - DTOs generated from — or validated against — the committed `openapi.json`
 - CI check that fails when a fixture drifts from the schema
-- Base URL driven by configuration from the start: tunnel, localhost, production
+- Base URL driven by configuration from the start: localhost, production
 
-**Done when:** you can develop and run tests on the dev machine without a GPU (or without using it).
+**Done when:** you can develop and run tests without a GPU (or without using it).
 
-**Note:** fixtures cover offline stretches, not the default workflow. The tunnel is normally available, and anything not captured in Milestone 1 means running vLLM again.
+**Note:** fixtures cover stretches without a live GPU, not the default workflow. Anything not captured in Milestone 1 means running vLLM again.
 
 ---
 
@@ -63,7 +62,7 @@ What makes Milestones 4 through 8 possible away from the GPU box.
 
 Prove the agent loop works before we start coding against the API. Requires live vLLM.
 
-- Aider or OpenCode configured at the vLLM endpoint (tunnel address, or `localhost:8000` on the dev machine)
+- Aider or OpenCode configured at the vLLM endpoint (`localhost:8000`)
 - Complete a small file-edit task (the CSV demo)
 
 **Done when:** the model reads a file, edits it, and reports back.
@@ -74,13 +73,13 @@ Prove the agent loop works before we start coding against the API. Requires live
 
 .NET Core API, no auth, no vouchers. Accepts `/v1/chat/completions`, forwards to vLLM, returns the response.
 
-- `IInferenceClient` + `VllmInferenceClient` behind it, endpoint supplied by configuration — this is the seam that lets the same code target the tunnel in development and real hardware in production
+- `IInferenceClient` + `VllmInferenceClient` behind it, endpoint supplied by configuration — this is the seam that lets the same code target local vLLM in development and real hardware in production
 - **Streaming must pass through unbuffered**
 - Point the harness at your API instead of vLLM and redo the Milestone 2 task
 
 **Done when:** the harness can't tell the difference.
 
-**Requires live vLLM.** Streaming passthrough has to be proven against the real server over the tunnel. The fixture stub won't reproduce the buffering behavior this milestone exists to catch.
+**Requires live vLLM.** Streaming passthrough has to be proven against the real server. The fixture stub won't reproduce the buffering behavior this milestone exists to catch.
 
 **Risk:** ASP.NET buffering the response. A harness against a buffering proxy looks hung, not broken, and it's difficult to diagnose later with auth and vouchers in the way. Prove it here while there's nothing else added on top of it.
 
@@ -145,7 +144,7 @@ Middleware resolves credential → `{ VoucherId?, IsAdmin }`. Requests without a
 The cross-cutting work, made concrete:
 
 - Structured logging with a correlation ID per request
-- `/health` — checks vLLM reachability, not just that the API is up. During development that means tunnel reachability, so the check must not assume localhost
+- `/health` — checks vLLM reachability, not just that the API is up. Endpoint from configuration, not hardcoded.
 - Configuration and secrets outside source control
 - Global exception handling that returns OpenAI-shaped errors
 - Caddy in front as reverse proxy for easy certificate handling
