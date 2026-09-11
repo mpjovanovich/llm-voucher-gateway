@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "not-a-real-model",
+      "messages": [{"role": "user", "content": "hi"}]
+    }
+  },
+  "response": {
+    "http_status": 404,
+    "body": {
+      "error": {
+        "message": "The model `not-a-real-model` does not exist.",
+        "type": "NotFoundError",
+        "param": "model",
+        "code": 404
+      }
+    }
+  }
+}

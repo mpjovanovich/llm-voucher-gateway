@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/chat/completions",
+    "body": {
+      "model": "Qwen/Qwen2.5-0.5B-Instruct",
+      "messages": [{"role": "user", "content": "hi"}],
+      "max_tokens": 40000
+    },
+    "note": "This model's max_model_len is 32768. Any request whose max_tokens (or prompt + max_tokens) exceeds that limit triggers this error. This example forces it directly via max_tokens for a reproducible capture; a long prompt without an explicit max_tokens would trigger the same error type with a different message."
+  },
+  "response": {
+    "http_status": 400,
+    "body": {
+      "error": {
+        "message": "max_tokens=40000 cannot be greater than max_model_len=max_total_tokens=32768. Please request fewer output tokens. (parameter=max_tokens, value=40000)",
+        "type": "BadRequestError",
+        "param": "max_tokens",
+        "code": 400
+      }
+    }
+  }
+}
