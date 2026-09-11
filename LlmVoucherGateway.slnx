@@ -1,2 +1,5 @@
 <Solution>
+    <Folder Name="/src/">
+        <ProjectReference Path="src/LlmVoucherGateway.Domain/LlmVoucherGateway.Domain.csproj" />
+    </Folder>
 </Solution>
