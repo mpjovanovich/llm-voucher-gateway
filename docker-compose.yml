@@ -1,0 +1,12 @@
+services:
+  evently.database:
+    image: postgres:18
+    container_name: LlmGateway.Database
+    environment:
+      - POSTGRES_DB=llmgateway
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./.containers/db:/var/lib/postgresql
+    ports:
+      - 5432:5432

@@ -54,7 +54,9 @@ Student harness  →  ASP.NET API  →  vLLM (Docker, GPU)
 
 **vLLM** — official Docker image, GPU passthrough, `ipc: host` required. Serves an OpenAI-compatible endpoint. Has no concept of students; the API calls it with a single service credential. It is not part of the Web API application; it's just what that application talks to.
 
-**ASP.NET API** — the whole application. Composition root plus:
+**ASP.NET API** — the whole application. Name will be generic "LLM Gateway", with casing matching standard project and technology conventions.
+
+Composition root plus:
 
 - _Vouchers module_ — the only domain module. Holds voucher state (key hash, section, allowance, consumed, expiry, status) and the rules around it.
 - _Inference client adapter_ — thin `IInferenceClient` implementation for talking with vLLM server. HTTP, JSON, DTO mapping, no domain logic. Exists so tests don't need a GPU.
