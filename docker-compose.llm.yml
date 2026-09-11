@@ -1,3 +1,6 @@
+# VLLM IS NOT PART OF THE APPLICATION - THIS IS HERE FOR LOCAL DEVELOPMENT TESTING AND
+# TO PROVIDE AN EXAMPLE OF WHAT THE APPLICATION IS TALKING TO.
+
 # Requires host to have NVIDIA GPU and NVIDIA Container Toolkit installed:
 #   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.htm
 # Uses a tiny model for the proof of concept.

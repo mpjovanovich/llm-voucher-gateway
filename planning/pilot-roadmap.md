@@ -1,4 +1,4 @@
-# Pilot Roadmap — Refined
+# Pilot Roadmap
 
 Each milestone ends in something demonstrable. Ordering favors killing unknowns early over building in layers.
 

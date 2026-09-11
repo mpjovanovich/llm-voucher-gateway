@@ -1,4 +1,4 @@
-# Classroom LLM Pilot — Revised Plan (supersedes pilot-architecture.md)
+# Classroom LLM Pilot
 
 ## TODO:
 
@@ -52,7 +52,7 @@ Student harness  →  ASP.NET API  →  vLLM (Docker, GPU)
 
 ## Components
 
-**vLLM** — official Docker image, GPU passthrough, `ipc: host` required. Serves an OpenAI-compatible endpoint. Has no concept of students; the API calls it with a single service credential.
+**vLLM** — official Docker image, GPU passthrough, `ipc: host` required. Serves an OpenAI-compatible endpoint. Has no concept of students; the API calls it with a single service credential. It is not part of the Web API application; it's just what that application talks to.
 
 **ASP.NET API** — the whole application. Composition root plus:
 

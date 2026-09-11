@@ -1,10 +1,10 @@
 # Needed so that Make knows these are not actual files
-.PHONY: up down
+.PHONY: up-llm down
 
-# GPU host (NVIDIA Container Toolkit)
-up:
-	docker compose up -d
+# vLLM instance
+up-llm:
+	docker compose -f docker-compose.llm.yml up -d
 
 # Stops the stack
 down:
-	docker compose down
+	docker compose -f docker-compose.llm.yml down
