@@ -93,6 +93,8 @@ Prove the agent loop works before we start coding against the API. Requires live
 
 ## 4. Voucher issuance
 
+_IN PROGRESS_
+
 Domain module and admin endpoint. No enforcement yet. Fixtures are sufficient from here through Milestone 8.
 
 - Voucher aggregate: key hash, prefix, section, allowance, consumed, expiry, status
