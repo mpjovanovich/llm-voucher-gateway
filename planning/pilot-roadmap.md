@@ -18,6 +18,8 @@ Development may happens across two machine hardware profiles, and the roadmap de
 
 ## 1. vLLM running on a host machine with an NVIDIA GPU
 
+_COMPLETE_
+
 Docker Compose, tiny model (Qwen2.5-0.5B-Instruct), GPU passthrough. Requires a host with an NVIDIA GPU.
 
 - `curl /v1/models` returns the served model
@@ -25,6 +27,8 @@ Docker Compose, tiny model (Qwen2.5-0.5B-Instruct), GPU passthrough. Requires a 
 - Same request with `"stream": true` returns SSE chunks ending in `[DONE]`
 
 ### Capture set
+
+_COMPLETE_
 
 Everything later milestones will be built against. Capture generously — anything missed here is a return trip.
 
@@ -44,6 +48,8 @@ Everything later milestones will be built against. Capture generously — anythi
 ---
 
 ## 1b. Development environment
+
+_IN PROGRESS_
 
 What makes Milestones 4 through 8 possible without a live GPU.
 

@@ -35,6 +35,7 @@ services:
     environment:
       # WSL2 kernel supports pinned memory (needed for vLLM's UVA buffers)
       # but vLLM keeps it opt-in on WSL2 by default; enable it explicitly.
+      # It's set to use 85% of available VRAM.
       - VLLM_WSL2_ENABLE_PIN_MEMORY=1
     command: --model Qwen/Qwen2.5-0.5B-Instruct --gpu-memory-utilization 0.85
     deploy:
