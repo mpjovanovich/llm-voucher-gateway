@@ -1,9 +1,9 @@
 services:
   evently.database:
     image: postgres:18
-    container_name: LlmGateway.Database
+    container_name: LlmVoucherGateway.Database
     environment:
-      - POSTGRES_DB=llmgateway
+      - POSTGRES_DB=llm_voucher_gateway
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     volumes:
