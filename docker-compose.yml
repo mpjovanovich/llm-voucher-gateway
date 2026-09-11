@@ -1,5 +1,5 @@
 services:
-  evently.database:
+  llm-voucher-gateway.database:
     image: postgres:18
     container_name: LlmVoucherGateway.Database
     environment:
