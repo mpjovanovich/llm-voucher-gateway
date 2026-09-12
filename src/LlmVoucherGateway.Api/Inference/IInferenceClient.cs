@@ -9,8 +9,8 @@ internal interface IInferenceClient
     /// Forwards an opaque chat completion request body upstream.
     /// </summary>
     /// <param name="requestBody">
-    /// The caller's unread request body, relayed without inspection. Not disposed by the
-    /// implementation; ownership stays with the caller.
+    /// The caller's unread request body, relayed upstream without inspection. Treat it as
+    /// consumed once this returns: the send path may dispose it.
     /// </param>
     /// <param name="cancellationToken">
     /// Tears down the upstream request when the caller disconnects.
