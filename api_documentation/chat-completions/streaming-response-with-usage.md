@@ -13,7 +13,7 @@ curl -N http://localhost:8000/v1/chat/completions \
     }'
 ```
 
-## Key finding — feeds Milestone 6
+## Key finding — feeds Milestone 7
 
 Setting `include_usage` adds **one extra chunk after the `finish_reason: "stop"` chunk**,
 before `[DONE]`. That extra chunk has an **empty `choices` array** and carries the
@@ -22,7 +22,7 @@ before `[DONE]`. That extra chunk has an **empty `choices` array** and carries t
 `include_usage` is *not* set (compare
 [streaming-response.md](streaming-response.md)).
 
-Implication for Milestone 6 (consumption recording): a streaming consumer must not
+Implication for Milestone 7 (consumption recording): a streaming consumer must not
 stop reading at `finish_reason: "stop"` — it has to keep reading until `[DONE]` to
 see the usage chunk. And `stream_options.include_usage` can be set server-side by
 vLLM's request handling in this version, so it's an option the API layer can inject
