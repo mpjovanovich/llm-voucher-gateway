@@ -1,3 +1,4 @@
+using LlmVoucherGateway.Api.Endpoints;
 using LlmVoucherGateway.Api.Inference;
 using Microsoft.Extensions.Options;
 
@@ -23,5 +24,7 @@ builder.Services.AddHttpClient<IInferenceClient, VllmInferenceClient>((servicePr
 });
 
 WebApplication app = builder.Build();
+
+app.MapChatCompletions();
 
 await app.RunAsync();
