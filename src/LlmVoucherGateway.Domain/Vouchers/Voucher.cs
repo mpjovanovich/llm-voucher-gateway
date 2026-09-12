@@ -28,13 +28,20 @@ public sealed class Voucher : Entity
     public VoucherStatus Status { get; private set; }
     public VoucherLifetime Lifetime { get; private set; }
 
-    public static IssuedVoucher Issue(string? section, int allowance, DateTimeOffset expiresAt, IDateTimeProvider dateTimeProvider)
+    public static IssuedVoucher Issue(
+        string? section, 
+        int allowance, 
+        DateTimeOffset expiresAt, 
+        IDateTimeProvider dateTimeProvider
+    )
     {
         if (allowance <= 0)
             throw new ArgumentOutOfRangeException(nameof(allowance), allowance, VoucherErrors.AllowanceMustBePositive);
 
         GeneratedVoucherKey generatedKey = VoucherKeyGenerator.Generate();
+
         VoucherLifetime lifetime = new(dateTimeProvider.UtcNow, expiresAt);
+
         Voucher voucher = new(Guid.NewGuid(), generatedKey.Key, section, allowance, lifetime);
 
         return new IssuedVoucher(voucher, generatedKey.PlaintextKey);
