@@ -1,5 +1,6 @@
 <Solution>
     <Folder Name="/src/">
+        <Project Path="src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.csproj" />
         <Project Path="src/LlmVoucherGateway.Domain/LlmVoucherGateway.Domain.csproj" />
     </Folder>
     <Folder Name="/tests/">
