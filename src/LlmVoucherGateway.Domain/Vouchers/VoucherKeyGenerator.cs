@@ -3,7 +3,7 @@ using System.Text;
 
 namespace LlmVoucherGateway.Domain.Vouchers;
 
-public static class VoucherKeyGenerator
+internal static class VoucherKeyGenerator
 {
     private const int SecretByteLength = 32;
     private const int PrefixLength = 8;

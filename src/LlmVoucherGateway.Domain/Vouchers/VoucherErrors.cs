@@ -1,6 +1,6 @@
 namespace LlmVoucherGateway.Domain.Vouchers;
 
-public static class VoucherErrors
+internal static class VoucherErrors
 {
     public const string AllowanceMustBePositive = "Voucher allowance must be positive";
     public const string ExpiryMustBeInFuture = "Voucher expiry must be in future";
