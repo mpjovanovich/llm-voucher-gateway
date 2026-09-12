@@ -51,6 +51,10 @@ Everything later milestones will be built against. Capture generously — anythi
 
 ## 2. Harness against vLLM directly
 
+_COMPLETE_ — run 2026-09-12 as the baseline for Milestone 3's harness check
+
+**Observed:** Aider 0.86.2 (`--model openai/Qwen/Qwen2.5-0.5B-Instruct`, whole edit format) requests only `POST /v1/chat/completions`, streamed — no `GET /v1/models`, no other paths. A task issues two requests: the edit, then Aider's automatic lint-fix follow-up. No tool calling, so vLLM's tool-call parser was not needed. As predicted, the model mangled the CSV (rewrote it as a Markdown table, misgraded a row). This covers Aider only; a chat client chosen later may request other paths.
+
 Prove the harness plumbing works before we start coding against the API. Requires live vLLM.
 
 - Aider or OpenCode configured at the vLLM endpoint (`localhost:8000`)
@@ -64,6 +68,10 @@ Prove the harness plumbing works before we start coding against the API. Require
 ---
 
 ## 3. Pass-through API
+
+_COMPLETE_ — streaming baseline recorded in [api_documentation/README.md](../api_documentation/README.md#streaming-baseline--milestone-3)
+
+**Result:** Aider through the gateway produced byte-identical output to Aider against vLLM directly, including the unknown-model error (vLLM's 404 relayed verbatim). Per-chunk timing through the gateway matched vLLM direct (~4 ms median gap, a few ms added to first chunk). Run with `make up-llm && make run-api`; sample requests in [LlmVoucherGateway.Api.http](../src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.http).
 
 _Detailed build plan: [tmp-milestone-3-passthrough-api.md](tmp-milestone-3-passthrough-api.md)_
 

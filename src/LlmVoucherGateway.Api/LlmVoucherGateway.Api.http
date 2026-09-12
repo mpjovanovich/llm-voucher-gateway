@@ -1,0 +1,30 @@
+# Requests against the gateway. Start vLLM and the API first:
+#   make up-llm && make run-api
+#
+# Runs in VS Code (REST Client extension), Visual Studio, and Rider.
+# Swap @baseUrl to http://localhost:8000 to hit vLLM directly for comparison.
+#
+# Editor HTTP clients may hold a streamed response until it completes, so they show
+# that streaming *works* but not that it is *unbuffered*. For timing, use the curl
+# method in api_documentation/README.md ("Streaming baseline").
+
+@baseUrl = http://localhost:5131
+
+### Non-streaming chat completion
+POST {{baseUrl}}/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "messages": [{ "role": "user", "content": "Say hello in one sentence." }]
+}
+
+### Streaming chat completion (SSE chunks ending in [DONE])
+POST {{baseUrl}}/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "messages": [{ "role": "user", "content": "Say hello in one sentence." }],
+  "stream": true
+}
