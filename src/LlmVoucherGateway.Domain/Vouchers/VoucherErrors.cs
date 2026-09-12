@@ -2,9 +2,9 @@ namespace LlmVoucherGateway.Domain.Vouchers;
 
 public static class VoucherErrors
 {
-    public const string KeyHashRequired = "voucher.key_hash_required";
-    public const string KeyPrefixRequired = "voucher.key_prefix_required";
-    public const string SectionRequired = "voucher.section_required";
-    public const string AllowanceMustBePositive = "voucher.allowance_must_be_positive";
-    public const string ExpiryMustBeInFuture = "voucher.expiry_must_be_in_future";
+    public const string AllowanceMustBePositive = "Voucher allowance must be positive";
+    public const string ExpiryMustBeInFuture = "Voucher expiry must be in future";
+    public const string KeyHashRequired = "Voucher key missing hash";
+    public const string KeyPrefixRequired = "Voucher key missing prefix";
+    public const string PlaintextValueRequired = "Voucher plaintext value is required";
 }

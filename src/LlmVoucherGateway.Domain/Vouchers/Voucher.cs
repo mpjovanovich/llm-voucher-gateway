@@ -7,7 +7,7 @@ public sealed class Voucher : Entity
     private Voucher(
         Guid id,
         VoucherKey key,
-        string section,
+        string? section,
         int allowance,
         VoucherLifetime lifetime
     )
@@ -28,19 +28,15 @@ public sealed class Voucher : Entity
     public VoucherStatus Status { get; private set; }
     public VoucherLifetime Lifetime { get; private set; }
 
-    public static Voucher Issue(
-        VoucherKey key, 
-        VoucherLifetime lifetime,
-        string? section, 
-        int allowance,
-    )
+    public static IssuedVoucher Issue(string? section, int allowance, DateTimeOffset expiresAt, IDateTimeProvider dateTimeProvider)
     {
-        ArgumentNullException.ThrowIfNull(key);
-        ArgumentNullException.ThrowIfNull(lifetime);
-
         if (allowance <= 0)
             throw new ArgumentOutOfRangeException(nameof(allowance), allowance, VoucherErrors.AllowanceMustBePositive);
 
-        return new Voucher(Guid.NewGuid(), key, section, allowance, lifetime);
+        GeneratedVoucherKey generatedKey = VoucherKeyGenerator.Generate();
+        VoucherLifetime lifetime = new(dateTimeProvider.UtcNow, expiresAt);
+        Voucher voucher = new(Guid.NewGuid(), generatedKey.Key, section, allowance, lifetime);
+
+        return new IssuedVoucher(voucher, generatedKey.PlaintextKey);
     }
 }
