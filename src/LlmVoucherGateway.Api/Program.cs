@@ -1,9 +1,13 @@
+using LlmVoucherGateway.Api.Inference;
+
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+builder.Services
+    .AddOptions<InferenceOptions>()
+    .BindConfiguration(InferenceOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 WebApplication app = builder.Build();
 
 await app.RunAsync();
-
-// Make Program visible to the integration tests so that they can instantiate it.
-// Otherwise the Program class will be scoped to "internal".
-public partial class Program { }
