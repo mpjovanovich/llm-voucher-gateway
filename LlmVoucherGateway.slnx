@@ -1,8 +1,8 @@
 <Solution>
     <Folder Name="/src/">
-        <ProjectReference Path="src/LlmVoucherGateway.Domain/LlmVoucherGateway.Domain.csproj" />
+        <Project Path="src/LlmVoucherGateway.Domain/LlmVoucherGateway.Domain.csproj" />
     </Folder>
     <Folder Name="/tests/">
-        <ProjectReference Path="tests/LlmVoucherGateway.Domain.UnitTests/LlmVoucherGateway.Domain.UnitTests.csproj" />
+        <Project Path="tests/LlmVoucherGateway.Domain.UnitTests/LlmVoucherGateway.Domain.UnitTests.csproj" />
     </Folder>
 </Solution>

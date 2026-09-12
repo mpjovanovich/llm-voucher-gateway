@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\LlmVoucherGateway.Domain\LlmVoucherGateway.Domain.csproj" />
+    <ProjectReference Include="..\..\src\LlmVoucherGateway.Domain\LlmVoucherGateway.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
