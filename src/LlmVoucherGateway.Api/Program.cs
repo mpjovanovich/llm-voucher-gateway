@@ -1,8 +1,15 @@
+using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Endpoints;
 using LlmVoucherGateway.Api.Inference;
 using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+builder.Services
+    .AddOptions<AdminOptions>()
+    .BindConfiguration(AdminOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 builder.Services
     .AddOptions<InferenceOptions>()
