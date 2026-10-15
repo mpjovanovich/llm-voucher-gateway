@@ -93,7 +93,7 @@ _Detailed build plan: [tmp-milestone-3-passthrough-api.md](tmp-milestone-3-passt
 
 ## 4. Persistence
 
-Postgres and EF Core. No new behavior — this exists because Milestone 5 can't mint a voucher without somewhere to put it.
+Postgres and EF Core. No new behavior. Issuance (Milestone 5) returns the batch in the response and does not need this. This exists so Milestone 6 has a row to look up.
 
 - `DbContext`, connection string from configuration, container already in [docker-compose.yml](../docker-compose.yml)
 - Map the existing voucher aggregate: `VoucherKey` and `VoucherLifetime` as owned types
@@ -105,22 +105,64 @@ Postgres and EF Core. No new behavior — this exists because Milestone 5 can't 
 
 ## 5. Voucher issuance
 
-_IN PROGRESS: voucher issuance domain complete_ — see [Vouchers/](../src/LlmVoucherGateway.Domain/Vouchers/)
+_IN PROGRESS: domain complete, no API yet_ — see [Vouchers/](../src/LlmVoucherGateway.Domain/Vouchers/)
 
-Admin endpoint over the existing domain. No enforcement yet.
+Admin endpoint over `Voucher.Issue`. It mints a batch and the response body is that batch. No database, no file, no enforcement on `/v1/chat/completions`. Persistence is Milestone 4; lookup is Milestone 6. Neither is a prerequisite.
 
-- Voucher aggregate: key hash, prefix, section, allowance, consumed, expiry, status — _done_
-- `POST /admin/vouchers` — issue a batch, return plaintext once
-- Credential resolution middleware, written once here: bearer token → `{ VoucherId?, IsAdmin }`, with the admin branch live and the voucher branch landing in Milestone 6. Admin check takes a list of valid keys, not one
-- Issuance logging: voucher IDs, prefixes, count, source IP — never plaintext
+`Voucher.Issue`, `VoucherKey` and `VoucherKeyGenerator` already exist, so all three substeps below are API-side. The middleware comes first because the endpoint is admin-only by definition — there is no point minting real keys through an open route and bolting auth on after.
 
-**Done when:** `curl` mints 20 vouchers and you get a distributable CSV.
+### 5a. Credential middleware
+
+Written once, here. Milestone 6 fills in a branch rather than rewriting it.
+
+- Bearer token resolves to `{ VoucherId?, IsAdmin }`
+- Admin branch is live. Configuration is a list of valid keys, not a single key. A match sets `IsAdmin`
+- Voucher branch is the same middleware with no lookup yet. It lands in Milestone 6
+- Admin routes require `IsAdmin`. A missing or unknown bearer is `401`
+- `/v1/chat/completions` stays open
+
+**Done when:** an admin-only route returns `401` for a missing bearer and for an unknown one, succeeds for a configured one, and the Milestone 3 harness run still passes through untouched.
+
+### 5b. Issuance endpoint
+
+`POST /admin/vouchers`
+
+Request JSON:
+
+- `section` — optional string, stamped on every voucher in the batch
+- `count` — how many to issue; positive integer
+- `allowance` — positive token budget, the same for every voucher in the batch
+- `expiresAt` — instant strictly after issuance time
+
+Response: `200 application/json`, a JSON array with one object per issued voucher. The endpoint loops `Voucher.Issue`; it does not invent a second model.
+
+- `id`
+- `key` — the bearer secret. This response is the only place it exists. The aggregate keeps the hash and an 8-character `prefix`
+- `prefix`
+- `section`, `allowance`, `consumed` (`0`), `status` (`Active`), `createdAt`, `expiresAt`
+
+Whoever called it distributes that array. The API does not write a CSV or any other file.
+
+`400` when `count` is not a positive integer, or when the domain rejects the call: allowance not positive, or `expiresAt` not in the future.
+
+**Done when:** `curl` with an admin bearer token gets a JSON array of 20 voucher objects, and each bad request above gets a `400` instead of a `500`.
+
+### 5c. Issuance logging
+
+The audit trail for keys that exist in exactly one response body and nowhere else.
+
+- One log line per call: voucher ids, prefixes, count, source IP
+- The `key` field is not logged — no `key` at any level, and no dump of the response body
+
+**Done when:** the log line for a 20-voucher call carries ids and prefixes, and grepping the full log output for a plaintext key taken from that response finds nothing.
+
+**Done when (whole milestone):** all three substeps, exercised in one call — `curl` with an admin bearer token gets a JSON array of 20 voucher objects, and the log line for that call has ids and prefixes but not keys.
 
 ---
 
 ## 6. Voucher validation
 
-Fill in the voucher branch of the middleware from Milestone 5. Requests without a valid voucher are rejected.
+Fill in the voucher branch of the middleware from Milestone 5a. Requests without a valid voucher are rejected.
 
 - Hash + lookup, straight to the database — **no cache.** Under 20 users on requests that occupy a GPU for seconds, a lookup is free, and caching would buy a revocation delay for no measurable gain. Revisit only if Milestone 10 shows a reason
 - Reject: unknown, revoked, expired, allowance exhausted
@@ -210,7 +252,9 @@ Changes from the first draft of this roadmap, kept for context:
 
 - **Old Milestone 1b (development environment) dissolved.** Config-driven base URL moved into Milestone 3; the vLLM stand-in became a fake `IInferenceClient` in Milestone 6. Dropped entirely: DTOs generated from `openapi.json` (the passthrough needs none, and Milestone 7 needs a handful of `usage` fields) and the CI schema-drift check (the pinned image tag is the control). vLLM is a dependency we consume, not a schema we own.
 - **Persistence promoted to its own milestone (4).** It was invisible work hiding inside voucher issuance.
+- **Milestone 5 returns a JSON array and does not require persistence.** The earlier bar — return plaintext, done when you have a distributable CSV — mixed the one-time secret with a file format and tied minting to the database. The secret is the `key` field on each object. Storing the hash waits for Milestone 4; looking it up waits for Milestone 6.
 - **Cache removed from voucher validation.** Premature at this scale, and it bought a revocation delay.
-- **Credential middleware written once, in Milestone 5.** Previously split between an admin check in issuance and a general resolver in validation.
+- **Credential middleware written once, in Milestone 5a.** Previously split between an admin check in issuance and a general resolver in validation.
+- **Milestone 5 split into 5a/5b/5c.** It was three deliverables under one bar: the middleware, the endpoint, and the logging. The middleware is a prerequisite for the endpoint and is the thing Milestone 6 extends, so it gets its own done-when rather than being proven incidentally by a successful mint.
 - **Milestone 2's bar lowered to protocol, not edit quality.** A 0.5B model failing an agentic edit says nothing about the plumbing.
 - **No feasibility spike.** Hardware access is available and the shape is understood; pulling Milestone 10 forward would answer a question that isn't open.

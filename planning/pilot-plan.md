@@ -83,7 +83,7 @@ Vouchers are bearer tokens: whoever holds one can spend it. Sharing is undetecta
 
 ## Voucher lifecycle
 
-- **Issue:** admin curls `POST /admin/vouchers` with section, count, allowance, expiry. Response returns plaintext keys _once_; DB stores hashes only. That CSV is distributed and then deleted.
+- **Issue:** admin curls `POST /admin/vouchers` with section, count, allowance, expiry. The response is a JSON array of voucher objects. Each object includes the bearer secret once; that response is the only place the secret exists. The API does not write a file. Storing the hash is persistence (roadmap Milestone 4), not part of issuance.
 - **Use:** student pastes key into harness config. Middleware validates on each request.
 - **Revoke:** status flag, not a delete — a deleted row can't explain why something stopped working.
 - **Expire:** checked at request time, not only by a sweep.
