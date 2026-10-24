@@ -32,6 +32,8 @@ builder.Services.AddHttpClient<IInferenceClient, VllmInferenceClient>((servicePr
 
 WebApplication app = builder.Build();
 
+app.UseMiddleware<CredentialMiddleware>();
+
 app.MapChatCompletions();
 
 await app.RunAsync();
