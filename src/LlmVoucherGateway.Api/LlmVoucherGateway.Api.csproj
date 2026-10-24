@@ -1,2 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
+    <ItemGroup>
+        <InternalsVisibleTo Include="LlmVoucherGateway.Api.IntegrationTests" />
+    </ItemGroup>
 </Project>
