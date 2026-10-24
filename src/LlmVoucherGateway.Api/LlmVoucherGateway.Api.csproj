@@ -2,4 +2,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="LlmVoucherGateway.Api.IntegrationTests" />
     </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="..\LlmVoucherGateway.Domain\LlmVoucherGateway.Domain.csproj" />
+    </ItemGroup>
 </Project>
