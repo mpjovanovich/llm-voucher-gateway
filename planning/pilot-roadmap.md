@@ -109,7 +109,9 @@ _IN PROGRESS: domain complete, 5a complete_ — see [Vouchers/](../src/LlmVouche
 
 Admin endpoint over `Voucher.Issue`. It mints a batch and the response body is that batch. No database, no file, no enforcement on `/v1/chat/completions`. Persistence is Milestone 4; lookup is Milestone 6. Neither is a prerequisite.
 
-`Voucher.Issue`, `VoucherKey` and `VoucherKeyGenerator` already exist, so all three substeps below are API-side. The middleware comes first because the endpoint is admin-only by definition — there is no point minting real keys through an open route and bolting auth on after.
+`Voucher.Issue`, `VoucherKey` and `VoucherKeyGenerator` already exist, so all four substeps below are API-side.
+
+**Substep ordering:** credential resolution (5a), then minting (5b), then the requirement that guards it (5c), then the audit trail (5d). Minting comes before its guard because an endpoint is testable on its own — correct JSON array, `400`s on bad input — while a requirement is not testable until there is a route to attach it to. The route is open for one substep, inside the dev loop only; 5c is a prerequisite for running this anywhere a student can reach, and nothing is deployed between the two.
 
 ### 5a. Credential middleware
 
@@ -120,16 +122,14 @@ Resolution only. Written once, here; Milestone 6 fills in a branch rather than r
 - Bearer token resolves to `{ VoucherId?, IsAdmin }`, attached to the request as a feature
 - Admin branch is live. Configuration is a list of valid keys, not a single key. A match sets `IsAdmin`
 - Voucher branch is the same middleware with no lookup yet. It lands in Milestone 6
-- An unrecognized token attaches no credential and the request continues. Rejecting it is the route's decision, which is why enforcement sits in 5b
+- An unrecognized token attaches no credential and the request continues. Rejecting it is the route's decision, which is why enforcement sits in 5c
 - `/v1/chat/completions` stays open
 
 **Done when:** a configured admin key resolves to an admin credential; a missing bearer, an unknown token, and the right secret under the wrong scheme all resolve to no credential; and the Milestone 3 harness run still passes through untouched.
 
-### 5b. Admin authorization and the issuance endpoint
+### 5b. Issuance endpoint
 
-Authorization lands here rather than in 5a because a requirement needs a route to attach to. Both go in together, so no committed state has an open minting route.
-
-- An `/admin` route group requires `IsAdmin`. A missing bearer and an unknown one are both `401`
+Unprotected: the route is open and 5c closes it. Build the thing, then guard it.
 
 `POST /admin/vouchers`
 
@@ -151,9 +151,20 @@ Whoever called it distributes that array. The API does not write a CSV or any ot
 
 `400` when `count` is not a positive integer, or when the domain rejects the call: allowance not positive, or `expiresAt` not in the future.
 
-**Done when:** `curl` with an admin bearer token gets a JSON array of 20 voucher objects; the same call with a missing bearer and with an unknown one gets `401`; and each bad request above gets a `400` instead of a `500`.
+**Done when:** `curl` with no bearer token at all gets a JSON array of 20 voucher objects, and each bad request above gets a `400` instead of a `500`.
 
-### 5c. Issuance logging
+### 5c. Admin authorization
+
+Closes the route 5b opened. The credential is already resolved by 5a's middleware; this is only the decision to reject.
+
+- An `/admin` route group carries the requirement, so every later admin route inherits it. Milestone 8's revocation and listing routes get it for free
+- `IsAdmin` passes. A missing bearer, an unknown token, and a resolved voucher credential are all `401`
+- **Mechanism: an endpoint filter on the group, not ASP.NET's authentication/authorization stack.** The stack wants an authentication handler producing a `ClaimsPrincipal`, then policies evaluated against claims — apparatus for carrying one boolean, given the plan has no user entities. It would also duplicate 5a's middleware, since the handler *is* the resolver in that design. Its one real perk, framework-generated `401` challenges, is something Milestone 6 has to override anyway because rejections must be OpenAI-shaped JSON. An endpoint filter on a `MapGroup` is the minimal-API-native mechanism and keeps the response body ours
+- Rejection body stays empty here. The OpenAI-shaped payload is Milestone 6's bar, and that work should shape both the voucher rejections and this one at once
+
+**Done when:** `POST /admin/vouchers` with a configured admin key still returns the 20-voucher array, and the same call with no bearer and with an unknown token both return `401`.
+
+### 5d. Issuance logging
 
 The audit trail for keys that exist in exactly one response body and nowhere else.
 
@@ -162,7 +173,7 @@ The audit trail for keys that exist in exactly one response body and nowhere els
 
 **Done when:** the log line for a 20-voucher call carries ids and prefixes, and grepping the full log output for a plaintext key taken from that response finds nothing.
 
-**Done when (whole milestone):** all three substeps, exercised in one call — `curl` with an admin bearer token gets a JSON array of 20 voucher objects, and the log line for that call has ids and prefixes but not keys.
+**Done when (whole milestone):** all four substeps, exercised in one call — `curl` with an admin bearer token gets a JSON array of 20 voucher objects, and the log line for that call has ids and prefixes but not keys.
 
 ---
 
@@ -270,7 +281,7 @@ Changes from the first draft of this roadmap, kept for context:
 - **Milestone 5 returns a JSON array and does not require persistence.** The earlier bar — return plaintext, done when you have a distributable CSV — mixed the one-time secret with a file format and tied minting to the database. The secret is the `key` field on each object. Storing the hash waits for Milestone 4; looking it up waits for Milestone 6.
 - **Cache removed from voucher validation.** Premature at this scale, and it bought a revocation delay.
 - **Credential middleware written once, in Milestone 5a.** Previously split between an admin check in issuance and a general resolver in validation.
-- **Admin authorization moved from 5a to 5b.** 5a's bar named "an admin-only route," which 5b is what creates — the first admin route and the requirement guarding it now land in the same step. The middleware still comes first, so the concern that put it there is unaffected.
+- **Admin authorization moved out of 5a, and now follows issuance as 5c.** 5a's bar named "an admin-only route," which is the thing 5b creates; a requirement has nothing to attach to before then. Pairing it with the endpoint in one step was the first fix, and splitting it to sit *after* the endpoint was the second: an unprotected endpoint can be driven with `curl` and asserted on its own, so it makes a smaller increment than endpoint-plus-guard together. Logging became 5d. The original note that the middleware must precede the endpoint still holds — resolution is 5a — but "no open minting route at any point" was relaxed to "no open minting route outside the dev loop."
 - **Milestone 5 split into 5a/5b/5c.** It was three deliverables under one bar: the middleware, the endpoint, and the logging. The middleware is a prerequisite for the endpoint and is the thing Milestone 6 extends, so it gets its own done-when rather than being proven incidentally by a successful mint.
 - **Milestone 2's bar lowered to protocol, not edit quality.** A 0.5B model failing an agentic edit says nothing about the plumbing.
 - **No feasibility spike.** Hardware access is available and the shape is understood; pulling Milestone 10 forward would answer a question that isn't open.
