@@ -1,8 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
+using LlmVoucherGateway.Api.Credentials;
 using Microsoft.Extensions.Options;
 
-namespace LlmVoucherGateway.Api.Credentials;
+namespace LlmVoucherGateway.Api.Middleware;
 
 /// <summary>
 /// Resolves a request's bearer token into a <see cref="CallerCredential"/> and attaches

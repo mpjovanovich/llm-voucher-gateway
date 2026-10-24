@@ -1,6 +1,7 @@
 using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Endpoints;
 using LlmVoucherGateway.Api.Inference;
+using LlmVoucherGateway.Api.Middleware;
 using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
