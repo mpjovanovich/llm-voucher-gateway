@@ -4,6 +4,7 @@
         <Project Path="src/LlmVoucherGateway.Domain/LlmVoucherGateway.Domain.csproj" />
     </Folder>
     <Folder Name="/tests/">
+        <Project Path="tests/LlmVoucherGateway.Api.IntegrationTests/LlmVoucherGateway.Api.IntegrationTests.csproj" />
         <Project Path="tests/LlmVoucherGateway.Domain.UnitTests/LlmVoucherGateway.Domain.UnitTests.csproj" />
     </Folder>
 </Solution>
