@@ -11,8 +11,8 @@ Development may happens across two machine hardware profiles, and the roadmap de
 - **GPU box** Runs vLLM. Can be a dev machine as long as it has an NVIDIA GPU. The only place real responses come from.
 - **Non GPU machine** Noted here because some dev machines do not have an NVIDIA GPU; AVX2 only — no AVX512 — so it cannot run vLLM's CPU backend. We can't run local inference on machines of this profile.
 
-**Requires live running vLLM:** Milestones 1, 2, 3, 10
-**Can proceed without a GPU:** Milestones 4, 5, 6, 7, 8, 9
+**Requires live running vLLM:** Milestones 1, 2, 3, 6g, 10
+**Can proceed without a GPU:** Milestones 4, 5, 6 (except 6g), 7, 8, 9
 
 The dev GPU box is lower spec'd than production hardware. That is accepted: these milestones prove shape and plumbing, not performance. Performance is Milestone 10's question.
 
@@ -223,12 +223,79 @@ Fill in the voucher branch of the middleware from Milestone 5a. Requests without
 - Hash + lookup, straight to the database — **no cache.** Under 20 users on requests that occupy a GPU for seconds, a lookup is free, and caching would buy a revocation delay for no measurable gain. Revisit only if Milestone 10 shows a reason
 - Reject: unknown, revoked, expired, allowance exhausted
 - **Errors must be OpenAI-shaped**, matching the error payloads captured in Milestone 1. A harness receiving your custom error format will render garbage or crash. Every failure has to leave through a wire format the client already understands. Errors from vLLM relay verbatim and are already correctly shaped; this is about the rejections we generate
-- Distinguish 401 (bad credential) from 402/429 (valid but out of allowance), so a student can tell "wrong key" from "used it up"
-- First milestone that needs a stand-in for vLLM to exercise the pass case: a fake `IInferenceClient` replaying captured fixtures. A class, not a stub server — nothing here points a live harness at a GPU-less box
+- Distinguish 401 (bad credential) from 402 (valid but out of allowance), so a student can tell "wrong key" from "used it up"
 
-**Depends on:** captured error payloads from Milestone 1. Without them the error shape is guesswork.
+**Depends on:** captured error payloads from Milestone 1. Without them the error shape is guesswork. The shape they fix is `{"error":{"message","type","param","code"}}` — see [errors/](../api_documentation/errors/).
 
-**Done when:** a valid voucher works, an invalid one fails cleanly _in the harness_, not just in curl.
+**Substep ordering:** 6a, 6b and 6c are independent of each other and can be taken in any order. Everything after is forced: 6a and 6b and 6d all feed 6e, 6c feeds 6d and 6e, and 6f then 6g follow enforcement. `/v1/chat/completions` stays open until 6e — the same deliberate gap as 5b before 5c, and for the same reason: a requirement needs something to attach to, and resolution is testable before rejection exists.
+
+### 6a. The OpenAI error contract
+
+A writer that produces `{"error":{"message","type","param","code"}}` with a matching status code. Nothing uses it yet; this is the wire format every later rejection leaves through, and getting it wrong is the failure the milestone warns about.
+
+- Status map: unknown credential, revoked and expired are all `401`; allowance exhausted is `402`
+- **`402` rather than `429`:** "Payment Required" says the credential is fine and the budget is not, which is exactly the distinction a student needs. `429` means rate limiting, and Milestone 10 may want it for that actual purpose — spending it here would leave nothing to say "slow down" with
+- The admin rejections from 5c keep their empty bodies. They are reached with curl by an operator, not parsed by a harness
+
+**Done when:** the serialized output matches the captured payloads field for field, asserted in tests.
+
+### 6b. Fake `IInferenceClient`
+
+A stand-in replaying the Milestone 1 captures, registered by the test factory in place of `VllmInferenceClient`. A class, not a stub server — nothing here points a live harness at a GPU-less box.
+
+- Returns [non-streaming-response.json](../api_documentation/chat-completions/non-streaming-response.json) for a non-streaming request
+- The SSE stream in [streaming-response.md](../api_documentation/chat-completions/streaming-response.md) needs extracting into a fixture the fake can read; the markdown is for humans
+- First test of `/v1/chat/completions` at all. Every later pass-case test depends on this, which is why it comes before enforcement rather than alongside it
+
+**Done when:** an integration test posts to `/v1/chat/completions` and gets the captured response back, with no GPU involved.
+
+### 6c. Domain: when is a voucher spendable?
+
+`Status`, `Lifetime` and `Consumed` are currently just data — nothing in the aggregate can answer whether a voucher may be spent.
+
+- A method on `Voucher` returning spendable, or the reason it is not: revoked, expired, exhausted. Takes `IDateTimeProvider`, since expiry is checked at request time rather than by a sweep
+- Pure domain: unit tests, no database and no HTTP
+- Exhaustion is computed from `Consumed` against `Allowance`. Writing to `Consumed` is Milestone 7; this substep only reads
+
+**Done when:** each reason is covered by a unit test at the boundary — expiring one tick either side, consumed equal to and over allowance.
+
+### 6d. Middleware voucher branch: hash and look up
+
+Fills in the branch 5a left open.
+
+- Hash the bearer token with the domain's hashing, query by `Key_Hash`, attach the credential when a row matches
+- **Resolution only, as with the admin branch.** A revoked or exhausted voucher still resolves: "who are you" and "may you" stay separate, which is what lets 6e own every rejection and its status code
+- `CredentialMiddleware` needs a scoped `VoucherDbContext`, which conventional middleware takes as an `InvokeAsync` parameter rather than through its constructor
+- 6e needs the voucher's state, so the credential carries what the lookup already loaded rather than making 6e query a second time
+
+**Done when:** a request bearing an issued key resolves to a voucher credential, an unknown key resolves to none, and the probe test from 5a reports `voucher` for the first time.
+
+### 6e. Enforcement on `/v1/chat/completions`
+
+Mirrors `AdminOnlyEndpointFilter`: an endpoint filter that requires a voucher credential, asks 6c whether it is spendable, and returns 6a's body with the mapped status. The endpoint stops being open here.
+
+- Pass case uses 6b's fake, so the suite stays GPU-free
+- Each rejection reason gets a test asserting both the status and the error body
+
+**Done when:** a valid voucher reaches the inference client; unknown, revoked, expired and exhausted vouchers each get the right status and an OpenAI-shaped body.
+
+### 6f. Rejection logging
+
+Extends what 5d established for admin rejections.
+
+- `Warning` per rejection with source address and reason. The reason is what distinguishes "wrong key" from "used it up" in a post-mortem
+- Same paired assertions as 5d: the rejection line is present, and neither the attempted token nor any issued key appears in the log
+
+**Done when:** each rejection reason produces a line naming it, and a search of captured output finds no secret.
+
+### 6g. Harness verification
+
+**Requires live vLLM**, so this runs on the GPU box and is the only substep that cannot be done here.
+
+- Point Aider at the gateway with a valid voucher and redo the Milestone 2 task
+- Repeat with a revoked voucher and confirm the failure is legible in the harness rather than a crash or silence
+
+**Done when (whole milestone):** a valid voucher works, an invalid one fails cleanly _in the harness_, not just in curl.
 
 ---
 
@@ -317,6 +384,7 @@ Changes from the first draft of this roadmap, kept for context:
 - **Credential middleware written once, in Milestone 5a.** Previously split between an admin check in issuance and a general resolver in validation.
 - **Persistence switched from Postgres to SQLite, and stopped being optional.** The original choice was recorded as "Postgres and EF Core" with a container in `docker-compose.yml`, but nothing was built against it. One table for under 20 users does not need a server, and a single container is the real win; the reasoning, the backup caveat, and the rejected Redis alternative are written into Milestone 4. The compose file's `postgres` service was removed.
 - **Admin authorization moved out of 5a, and now follows issuance as 5c.** 5a's bar named "an admin-only route," which is the thing 5b creates; a requirement has nothing to attach to before then. Pairing it with the endpoint in one step was the first fix, and splitting it to sit _after_ the endpoint was the second: an unprotected endpoint can be driven with `curl` and asserted on its own, so it makes a smaller increment than endpoint-plus-guard together. Logging became 5d. The original note that the middleware must precede the endpoint still holds — resolution is 5a — but "no open minting route at any point" was relaxed to "no open minting route outside the dev loop."
+- **Milestone 6 split into 6a–6g.** It was five bullets spanning a wire format, a test double, a domain rule, a lookup and an enforcement point, under a single bar that could only be checked with a harness on the GPU box. The substeps are ordered so each one is verifiable when it lands, with the three independent ones first; the harness check stays last because it is the only part that needs live vLLM. `402` was settled over `429` for an exhausted allowance there.
 - **Milestone 5 split into 5a/5b/5c.** It was three deliverables under one bar: the middleware, the endpoint, and the logging. The middleware is a prerequisite for the endpoint and is the thing Milestone 6 extends, so it gets its own done-when rather than being proven incidentally by a successful mint.
 - **Milestone 2's bar lowered to protocol, not edit quality.** A 0.5B model failing an agentic edit says nothing about the plumbing.
 - **No feasibility spike.** Hardware access is available and the shape is understood; pulling Milestone 10 forward would answer a question that isn't open.
