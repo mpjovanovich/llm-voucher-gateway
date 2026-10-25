@@ -23,7 +23,7 @@ public class VoucherIssuanceEndpointTests
     public async Task Issue_WithValidRequest_ReturnsTheRequestedNumberOfVouchers()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = factory.CreateAdminClient();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             IssuancePath,
@@ -43,7 +43,7 @@ public class VoucherIssuanceEndpointTests
     public async Task Issue_WithValidRequest_StampsTheBatchPolicyOnEveryVoucher()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = factory.CreateAdminClient();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             IssuancePath,
@@ -72,7 +72,7 @@ public class VoucherIssuanceEndpointTests
     public async Task Issue_WithValidRequest_GivesEveryVoucherItsOwnIdAndKey()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = factory.CreateAdminClient();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             IssuancePath,
@@ -91,7 +91,7 @@ public class VoucherIssuanceEndpointTests
     public async Task Issue_StoresOneVoucherPerObjectInTheResponse()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = factory.CreateAdminClient();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             IssuancePath,
@@ -137,7 +137,7 @@ public class VoucherIssuanceEndpointTests
     public async Task Issue_WithNonPositiveCount_ReturnsBadRequest(int count)
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = factory.CreateAdminClient();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             IssuancePath,
@@ -155,7 +155,7 @@ public class VoucherIssuanceEndpointTests
     public async Task Issue_WithNonPositiveAllowance_ReturnsBadRequest()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = factory.CreateAdminClient();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             IssuancePath,
@@ -169,7 +169,7 @@ public class VoucherIssuanceEndpointTests
     public async Task Issue_WithExpiryInThePast_ReturnsBadRequest()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = factory.CreateAdminClient();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             IssuancePath,
@@ -183,7 +183,7 @@ public class VoucherIssuanceEndpointTests
     public async Task Issue_WithCountAboveTheDefaultCap_ReturnsBadRequest()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = factory.CreateAdminClient();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             IssuancePath,
@@ -205,7 +205,7 @@ public class VoucherIssuanceEndpointTests
         const int configuredCap = 2;
 
         await using CappedApplicationFactory factory = new(configuredCap);
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = factory.CreateAdminClient();
 
         using HttpResponseMessage atCap = await client.PostAsJsonAsync(
             IssuancePath,
@@ -248,7 +248,7 @@ public class VoucherIssuanceEndpointTests
     public async Task Issue_WithMalformedJson_ReturnsBadRequest()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = factory.CreateAdminClient();
 
         // Model binding fails before the endpoint is entered. Without a case for it in
         // the exception handler this arrives as a 500.

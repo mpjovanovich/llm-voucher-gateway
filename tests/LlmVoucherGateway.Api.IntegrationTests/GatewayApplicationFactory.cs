@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Inference;
 using LlmVoucherGateway.Api.Persistence;
@@ -25,6 +26,20 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
         System.IO.Path.GetTempPath(),
         $"llm-voucher-gateway-tests-{Guid.NewGuid():N}.db"
     );
+
+    /// <summary>
+    /// A client whose every request carries the configured admin bearer token, for tests
+    /// about what an admin route does rather than about who may reach it.
+    /// </summary>
+    public HttpClient CreateAdminClient()
+    {
+        HttpClient client = CreateClient();
+
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", ConfiguredAdminKey);
+
+        return client;
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

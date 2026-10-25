@@ -11,9 +11,13 @@ namespace LlmVoucherGateway.Api.Endpoints;
 /// </summary>
 internal static class VoucherIssuanceEndpoint
 {
+    /// <summary>
+    /// Mapped into the <c>/admin</c> group from <see cref="AdminEndpoints"/>, which
+    /// supplies both the path prefix and the administrator requirement.
+    /// </summary>
     public static void MapVoucherIssuance(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/admin/vouchers", HandleAsync);
+        endpoints.MapPost("/vouchers", HandleAsync);
     }
 
     private static async Task<IResult> HandleAsync(
