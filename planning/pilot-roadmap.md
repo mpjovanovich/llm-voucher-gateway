@@ -257,6 +257,10 @@ Fill in the voucher branch of the middleware from Milestone 5a. Requests without
 The cross-cutting work, made concrete. Deliberately last of the build milestones — none of it was a concern while proving the request path.
 
 - Structured logging with a correlation ID per request
+- **`app.UseSerilogRequestLogging()`** — one line per HTTP request with method, path, status and duration. This is the backbone of any post-mortem, because it covers every route uniformly rather than only what was logged by hand, and it is the only thing that records a request the pipeline rejected before any endpoint ran. The client address is not included by default and needs a small enricher
+- **A rolling file sink with retention**, on the same mounted volume as the SQLite database: console alone dies with the container, so a leak discovered on Tuesday has nothing to look back at. Daily roll with 14–30 days retained covers a term. Configuration only, no code
+- **Forwarded headers belong here too.** Once Caddy is in front, every logged address is the proxy's unless `UseForwardedHeaders` is configured, which silently empties the one field abuse analysis depends on
+- **Never logged, at any level:** voucher keys, admin keys, `Authorization` headers, and request or response bodies. Prompt bodies are the easy mistake — logging them would be both a volume problem and the end of this project's claim to hold no student content
 - `/health` — checks vLLM reachability, not just that the API is up. Endpoint from configuration, not hardcoded.
 - Configuration and secrets outside source control
 - Global exception handling that returns OpenAI-shaped errors
