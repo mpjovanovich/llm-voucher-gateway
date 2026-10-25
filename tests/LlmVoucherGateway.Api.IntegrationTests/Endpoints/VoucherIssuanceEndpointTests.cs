@@ -116,7 +116,7 @@ public class VoucherIssuanceEndpointTests
 
             // Milestone 6 resolves a bearer token by hashing it and matching this column,
             // so a key that does not hash to its stored hash could never be used.
-            Assert.Equal(VoucherKeyGenerator.Hash(issuedVoucher.Key), storedVoucher.Key.Hash);
+            Assert.Equal(VoucherKey.ComputeHash(issuedVoucher.Key), storedVoucher.Key.Hash);
             Assert.Equal(issuedVoucher.Prefix, storedVoucher.Key.Prefix);
 
             // The secret itself is never stored.

@@ -1,6 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using LlmVoucherGateway.Api.Credentials;
+using LlmVoucherGateway.Api.Persistence;
+using LlmVoucherGateway.Domain.Vouchers;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace LlmVoucherGateway.Api.Middleware;
@@ -16,19 +19,55 @@ internal sealed class CredentialMiddleware(RequestDelegate next, IOptions<AdminO
 
     private readonly AdminOptions _adminOptions = adminOptions.Value;
 
-    public async Task InvokeAsync(HttpContext httpContext)
+    // VoucherDbContext arrives as a parameter rather than through the constructor: this
+    // middleware is built once and reused, and a scoped context injected there would be
+    // held for the life of the process and shared across concurrent requests.
+    public async Task InvokeAsync(HttpContext httpContext, VoucherDbContext dbContext)
     {
         string? bearerToken = ReadBearerToken(httpContext.Request);
 
-        if (bearerToken is not null && MatchesAdminKey(bearerToken))
+        if (bearerToken is not null)
         {
-            httpContext.Features.Set(CallerCredential.ForAdmin());
+            if (MatchesAdminKey(bearerToken))
+            {
+                httpContext.Features.Set(CallerCredential.ForAdmin());
+            }
+            else
+            {
+                Voucher? voucher = await FindVoucherAsync(
+                    dbContext,
+                    bearerToken,
+                    httpContext.RequestAborted
+                );
+
+                // Attached whatever its state: a revoked, expired or exhausted voucher
+                // still identifies its holder, and turning them away is the route's
+                // decision rather than this one.
+                if (voucher is not null)
+                {
+                    httpContext.Features.Set(CallerCredential.ForVoucher(voucher));
+                }
+            }
         }
 
-        // The voucher branch — hash the token and look up the voucher — lands in
-        // Milestone 6. Until then a non-admin token resolves to no credential.
-
         await next(httpContext);
+    }
+
+    // Straight to the database on every request, with no cache. A lookup on an indexed
+    // hash costs nothing next to a request that occupies a GPU for seconds, and caching
+    // would buy a window where a revoked voucher still works.
+    private static Task<Voucher?> FindVoucherAsync(
+        VoucherDbContext dbContext,
+        string bearerToken,
+        CancellationToken cancellationToken
+    )
+    {
+        string hash = VoucherKey.ComputeHash(bearerToken);
+
+        return dbContext.Vouchers.SingleOrDefaultAsync(
+            voucher => voucher.Key.Hash == hash,
+            cancellationToken
+        );
     }
 
     private static string? ReadBearerToken(HttpRequest request)

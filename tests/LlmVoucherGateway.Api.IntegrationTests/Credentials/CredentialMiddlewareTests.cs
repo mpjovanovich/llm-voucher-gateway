@@ -1,4 +1,10 @@
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using LlmVoucherGateway.Api.Endpoints;
+using LlmVoucherGateway.Api.Persistence;
+using LlmVoucherGateway.Domain.Vouchers;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LlmVoucherGateway.Api.IntegrationTests.Credentials;
 
@@ -22,6 +28,77 @@ public class CredentialMiddlewareTests
             CredentialProbeApplicationFactory.AdminCredential,
             await response.Content.ReadAsStringAsync()
         );
+    }
+
+    [Fact]
+    public async Task IssuedVoucherKey_ResolvesToAVoucherCredential()
+    {
+        await using CredentialProbeApplicationFactory factory = new();
+
+        string voucherKey = await IssueVoucherKeyAsync(factory);
+
+        Assert.Equal(
+            CredentialProbeApplicationFactory.VoucherCredential,
+            await ProbeAsync(factory, $"Bearer {voucherKey}")
+        );
+    }
+
+    [Fact]
+    public async Task RevokedVoucherKey_StillResolvesToAVoucherCredential()
+    {
+        await using CredentialProbeApplicationFactory factory = new();
+
+        string voucherKey = await IssueVoucherKeyAsync(factory);
+
+        using (IServiceScope scope = factory.Services.CreateScope())
+        {
+            VoucherDbContext dbContext = scope.ServiceProvider.GetRequiredService<VoucherDbContext>();
+
+            Voucher voucher = await dbContext.Vouchers.SingleAsync();
+            voucher.Revoke();
+
+            await dbContext.SaveChangesAsync();
+        }
+
+        // Resolution answers who the holder is, not whether they may proceed. Collapsing
+        // the two here would leave the route unable to say why it refused.
+        Assert.Equal(
+            CredentialProbeApplicationFactory.VoucherCredential,
+            await ProbeAsync(factory, $"Bearer {voucherKey}")
+        );
+    }
+
+    private static async Task<string> IssueVoucherKeyAsync(GatewayApplicationFactory factory)
+    {
+        using HttpClient adminClient = factory.CreateAdminClient();
+
+        using HttpResponseMessage response = await adminClient.PostAsJsonAsync(
+            "/admin/vouchers",
+            new IssueVouchersRequest("CSCI-101", Count: 1, Allowance: 100_000, DateTimeOffset.UtcNow.AddDays(30))
+        );
+
+        List<IssuedVoucherResponse>? issued =
+            await response.Content.ReadFromJsonAsync<List<IssuedVoucherResponse>>();
+
+        return Assert.Single(issued!).Key;
+    }
+
+    private static async Task<string> ProbeAsync(
+        CredentialProbeApplicationFactory factory,
+        string authorizationHeader
+    )
+    {
+        using HttpClient client = factory.CreateClient();
+
+        using HttpRequestMessage request = new(
+            HttpMethod.Get,
+            CredentialProbeApplicationFactory.ProbePath
+        );
+        request.Headers.TryAddWithoutValidation("Authorization", authorizationHeader);
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        return await response.Content.ReadAsStringAsync();
     }
 
     [Theory]

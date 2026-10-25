@@ -275,12 +275,15 @@ _COMPLETE_ — see [Voucher.cs](../src/LlmVoucherGateway.Domain/Vouchers/Voucher
 
 ### 6d. Middleware voucher branch: hash and look up
 
+_COMPLETE_ — see [CredentialMiddleware.cs](../src/LlmVoucherGateway.Api/Middleware/CredentialMiddleware.cs) and [CredentialMiddlewareTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Credentials/CredentialMiddlewareTests.cs)
+
 Fills in the branch 5a left open.
 
-- Hash the bearer token with the domain's hashing, query by `Key_Hash`, attach the credential when a row matches
-- **Resolution only, as with the admin branch.** A revoked or exhausted voucher still resolves: "who are you" and "may you" stay separate, which is what lets 6e own every rejection and its status code
-- `CredentialMiddleware` needs a scoped `VoucherDbContext`, which conventional middleware takes as an `InvokeAsync` parameter rather than through its constructor
-- 6e needs the voucher's state, so the credential carries what the lookup already loaded rather than making 6e query a second time
+- Hashes the bearer token, queries by `Key_Hash`, attaches the credential when a row matches. Straight to the database on every request, no cache
+- **Resolution only, as with the admin branch.** A revoked or exhausted voucher still resolves: "who are you" and "may you" stay separate, which is what lets 6e own every rejection and its status code. A test revokes a voucher through the context and asserts it still resolves
+- **`VoucherDbContext` arrives as an `InvokeAsync` parameter, not through the constructor.** The middleware is built once and reused for every request; a scoped context injected into it would be held for the life of the process and shared across concurrent requests. `InvokeAsync` parameters are resolved per call from the request scope
+- **The credential carries the loaded aggregate, not its id.** It was already read to resolve the token and is still tracked by the request's context, so 6e can ask it for its state and Milestone 7 can record consumption against it — both without a second query. The cost is that `CallerCredential` now holds a domain entity rather than being a plain value
+- **Hashing moved to `VoucherKey.ComputeHash`**, public, with `VoucherKeyGenerator` delegating to it. Resolving a token means hashing it outside the domain, and one implementation is what keeps a token hashed at issuance and the same token hashed at request time from diverging. The domain's `InternalsVisibleTo` is gone with it
 
 **Done when:** a request bearing an issued key resolves to a voucher credential, an unknown key resolves to none, and the probe test from 5a reports `voucher` for the first time.
 

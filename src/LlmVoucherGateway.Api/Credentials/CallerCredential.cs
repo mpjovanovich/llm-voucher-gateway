@@ -1,3 +1,5 @@
+using LlmVoucherGateway.Domain.Vouchers;
+
 namespace LlmVoucherGateway.Api.Credentials;
 
 /// <summary>
@@ -7,9 +9,9 @@ namespace LlmVoucherGateway.Api.Credentials;
 /// </summary>
 internal sealed record CallerCredential
 {
-    private CallerCredential(Guid? voucherId, bool isAdmin)
+    private CallerCredential(Voucher? voucher, bool isAdmin)
     {
-        VoucherId = voucherId;
+        Voucher = voucher;
         IsAdmin = isAdmin;
     }
 
@@ -18,11 +20,19 @@ internal sealed record CallerCredential
     /// Administrators are configured keys rather than issued vouchers, so they
     /// have no allowance to meter against.
     /// </summary>
-    public Guid? VoucherId { get; }
+    /// <remarks>
+    /// The aggregate itself rather than its id: it was loaded to resolve the token, it is
+    /// still tracked by the request's <c>DbContext</c>, and whoever decides whether the
+    /// request may proceed needs its state. Carrying the id instead would mean reading
+    /// the same row twice per request.
+    /// </remarks>
+    public Voucher? Voucher { get; }
+
+    public Guid? VoucherId => Voucher?.Id;
 
     public bool IsAdmin { get; }
 
-    public static CallerCredential ForAdmin() => new(voucherId: null, isAdmin: true);
+    public static CallerCredential ForAdmin() => new(voucher: null, isAdmin: true);
 
-    public static CallerCredential ForVoucher(Guid voucherId) => new(voucherId, isAdmin: false);
+    public static CallerCredential ForVoucher(Voucher voucher) => new(voucher, isAdmin: false);
 }
