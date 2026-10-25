@@ -261,11 +261,14 @@ A stand-in replaying the Milestone 1 captures, registered by the test factory in
 
 ### 6c. Domain: when is a voucher spendable?
 
+_IN PROGRESS: expiry done; revoked and exhausted remain_ — see [Voucher.cs](../src/LlmVoucherGateway.Domain/Vouchers/Voucher.cs) and [VoucherSpendabilityTests.cs](../tests/LlmVoucherGateway.Domain.UnitTests/Vouchers/VoucherSpendabilityTests.cs)
+
 `Status`, `Lifetime` and `Consumed` are currently just data — nothing in the aggregate can answer whether a voucher may be spent.
 
-- A method on `Voucher` returning spendable, or the reason it is not: revoked, expired, exhausted. Takes `IDateTimeProvider`, since expiry is checked at request time rather than by a sweep
+- `Voucher.CheckSpendability(IDateTimeProvider)` returns a `VoucherSpendability`: spendable, or the reason it is not. The clock is passed in rather than read, so the rule can be exercised at the instant either side of a boundary
 - Pure domain: unit tests, no database and no HTTP
-- Exhaustion is computed from `Consumed` against `Allowance`. Writing to `Consumed` is Milestone 7; this substep only reads
+- **Expiry first, because it is the only rule reachable from the public surface.** `Voucher.Issue` always produces `Active` with `Consumed = 0`, and there is no `Revoke` until Milestone 8, so a unit test cannot yet build a revoked or exhausted voucher. Expiry needs nothing but a different clock. Expired *at* the expiry instant, not after it
+- **Still to add:** `Revoked`, which needs a way to revoke — either pulling a small `Revoke` method forward from Milestone 8 or testing through EF materialization — and `Exhausted`, which needs `Consumed` to be settable, the same question Milestone 7 answers when it starts recording consumption. Exhaustion is a read here either way; writing `Consumed` stays in Milestone 7
 
 **Done when:** each reason is covered by a unit test at the boundary — expiring one tick either side, consumed equal to and over allowance.
 

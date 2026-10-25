@@ -38,6 +38,22 @@ public sealed class Voucher : Entity
     public VoucherStatus Status { get; private set; }
     public VoucherLifetime Lifetime { get; private set; }
 
+    /// <summary>
+    /// Whether this voucher may be spent right now. Takes the clock rather than reading
+    /// it, so the rule is testable at the instant either side of a boundary.
+    /// </summary>
+    public VoucherSpendability CheckSpendability(IDateTimeProvider dateTimeProvider)
+    {
+        // Expired at the instant of expiry, not after it: the voucher is valid up to
+        // that point and not including it.
+        if (dateTimeProvider.UtcNow >= Lifetime.ExpiresAt)
+        {
+            return VoucherSpendability.Expired;
+        }
+
+        return VoucherSpendability.Spendable;
+    }
+
     public static IssuedVoucher Issue(
         string? section, 
         int allowance, 

@@ -1,15 +1,9 @@
-using LlmVoucherGateway.Domain.Abstractions;
 using LlmVoucherGateway.Domain.Vouchers;
 
 namespace LlmVoucherGateway.Domain.UnitTests.Vouchers;
 
 public class VoucherTests
 {
-    private sealed class FakeDateTimeProvider(DateTime utcNow) : IDateTimeProvider
-    {
-        public DateTime UtcNow { get; } = utcNow;
-    }
-
     private static readonly DateTime FixedUtcNow = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     public static TheoryData<DateTimeOffset> NonFutureExpiryTimes() =>
