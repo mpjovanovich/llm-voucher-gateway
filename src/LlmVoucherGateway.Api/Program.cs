@@ -6,11 +6,18 @@ using LlmVoucherGateway.Api.Middleware;
 using LlmVoucherGateway.Api.Persistence;
 using LlmVoucherGateway.Api.Time;
 using LlmVoucherGateway.Domain.Abstractions;
+using Serilog;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+// Serilog replaces the default providers rather than sitting beside them, so each line
+// is written once and in one format. Configuration lives in appsettings.
+builder.Logging.ClearProviders();
+builder.Services.AddSerilog(loggerConfiguration =>
+    loggerConfiguration.ReadFrom.Configuration(builder.Configuration));
 
 // TODO: Extract the DI registrations into theor own classes if this starts to turn this Program file into a mess.
 builder.Services
