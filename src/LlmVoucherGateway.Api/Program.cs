@@ -3,8 +3,11 @@ using LlmVoucherGateway.Api.Endpoints;
 using LlmVoucherGateway.Api.ExceptionHandlers;
 using LlmVoucherGateway.Api.Inference;
 using LlmVoucherGateway.Api.Middleware;
+using LlmVoucherGateway.Api.Persistence;
 using LlmVoucherGateway.Api.Time;
 using LlmVoucherGateway.Domain.Abstractions;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -27,6 +30,27 @@ builder.Services
     .BindConfiguration(VoucherIssuanceOptions.SectionName)
     .ValidateDataAnnotations()
     .ValidateOnStart();
+
+builder.Services
+    .AddOptions<DatabaseOptions>()
+    .BindConfiguration(DatabaseOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddDbContext<VoucherDbContext>((serviceProvider, dbContextOptions) =>
+{
+    DatabaseOptions databaseOptions = serviceProvider
+        .GetRequiredService<IOptions<DatabaseOptions>>().Value;
+
+    // Built rather than concatenated so a path containing a space or a semicolon
+    // cannot alter the rest of the connection string.
+    SqliteConnectionStringBuilder connectionString = new()
+    {
+        DataSource = databaseOptions.Path,
+    };
+
+    dbContextOptions.UseSqlite(connectionString.ConnectionString);
+});
 
 builder.Services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 

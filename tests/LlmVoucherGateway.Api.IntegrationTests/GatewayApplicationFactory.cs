@@ -1,5 +1,6 @@
 using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Inference;
+using LlmVoucherGateway.Api.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,16 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
 {
     public const string ConfiguredAdminKey = "integration-test-admin-key";
 
+    /// <summary>
+    /// A database of this factory's own, so tests neither share state nor inherit the
+    /// developer's file. Nothing opens it yet; deleting it on dispose arrives with the
+    /// first test that does.
+    /// </summary>
+    public string DatabasePath { get; } = System.IO.Path.Combine(
+        System.IO.Path.GetTempPath(),
+        $"llm-voucher-gateway-tests-{Guid.NewGuid():N}.db"
+    );
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureAppConfiguration(configuration =>
@@ -27,6 +38,8 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
                     // client, so it only has to be a well-formed address.
                     [$"{InferenceOptions.SectionName}:{nameof(InferenceOptions.BaseUrl)}"] =
                         "http://inference.invalid",
+
+                    [$"{DatabaseOptions.SectionName}:{nameof(DatabaseOptions.Path)}"] = DatabasePath,
                 }
             )
         );

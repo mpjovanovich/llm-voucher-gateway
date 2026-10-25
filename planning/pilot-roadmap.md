@@ -263,15 +263,6 @@ The cross-cutting work, made concrete. Deliberately last of the build milestones
 
 ---
 
-## 9.5 (Optional) Code Review and Cleanup
-
-Since this is the first AI-first project of significant scale, it'd be a good time to review this so that it can be used as reference for future projects.
-
-- Ask AI to extract style guidelines and best practices from the codebase (scoping, naming, etc.).
-- Check existing template online modular monolith repo for CLAUDE.md and other agent instructions. Try to merge it, as that one was overly complex.
-
----
-
 ## 10. Real model and load test
 
 Everything above runs on the 0.5B model on a dev-spec box. Now find out what it does under actual conditions. Requires live vLLM on real hardware.
