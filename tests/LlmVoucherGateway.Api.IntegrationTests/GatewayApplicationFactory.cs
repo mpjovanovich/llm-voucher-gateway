@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Serilog.Core;
 
 namespace LlmVoucherGateway.Api.IntegrationTests;
 
@@ -17,6 +19,8 @@ namespace LlmVoucherGateway.Api.IntegrationTests;
 internal class GatewayApplicationFactory : WebApplicationFactory<Program>
 {
     public const string ConfiguredAdminKey = "integration-test-admin-key";
+
+    private readonly RecordingSink _recordingSink = new();
 
     /// <summary>
     /// A database of this factory's own, so tests neither share state nor inherit the
@@ -41,8 +45,19 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
         return client;
     }
 
+    /// <summary>
+    /// Everything the application logged during this factory's lifetime.
+    /// </summary>
+    public string LogOutput => _recordingSink.Output;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // The application's Serilog configuration reads sinks from the container, so
+        // registering one here adds it beside the console sink rather than replacing the
+        // configuration under test.
+        builder.ConfigureServices(services =>
+            services.AddSingleton<ILogEventSink>(_recordingSink));
+
         builder.ConfigureAppConfiguration(configuration =>
             configuration.AddInMemoryCollection(
                 new Dictionary<string, string?>

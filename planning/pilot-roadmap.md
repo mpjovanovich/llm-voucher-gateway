@@ -118,7 +118,7 @@ _COMPLETE_ — see [Persistence/](../src/LlmVoucherGateway.Api/Persistence/)
 
 ## 5. Voucher issuance
 
-_IN PROGRESS: 5a, 5b and 5b.1 complete; 5c and 5d remain_ — see [Vouchers/](../src/LlmVoucherGateway.Domain/Vouchers/)
+_COMPLETE_ — see [Vouchers/](../src/LlmVoucherGateway.Domain/Vouchers/)
 
 Admin endpoint over `Voucher.Issue`. It mints a batch and the response body is that batch. No file, and no enforcement on `/v1/chat/completions`. Lookup is Milestone 6 and is not a prerequisite. Persistence (Milestone 4) is not needed for 5a or 5b, but 5b.1 is where issuance starts writing, so Milestone 4 runs before it.
 
@@ -186,6 +186,8 @@ This substep was written before Milestone 4 existed and shrank once it did: the 
 
 ### 5c. Admin authorization
 
+_COMPLETE_ — see [AdminEndpoints.cs](../src/LlmVoucherGateway.Api/Endpoints/AdminEndpoints.cs) and [AdminOnlyEndpointFilter.cs](../src/LlmVoucherGateway.Api/Credentials/AdminOnlyEndpointFilter.cs)
+
 Closes the route 5b opened. The credential is already resolved by 5a's middleware; this is only the decision to reject.
 
 - An `/admin` route group carries the requirement, so every later admin route inherits it. Milestone 8's revocation and listing routes get it for free
@@ -197,12 +199,18 @@ Closes the route 5b opened. The credential is already resolved by 5a's middlewar
 
 ### 5d. Issuance logging
 
+_COMPLETE_ — Serilog, see [Program.cs](../src/LlmVoucherGateway.Api/Program.cs) and [VoucherIssuanceLoggingTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Endpoints/VoucherIssuanceLoggingTests.cs)
+
 The audit trail for keys that exist in exactly one response body and nowhere else.
 
-- One log line per call: voucher ids, prefixes, count, source IP
-- The `key` field is not logged — no `key` at any level, and no dump of the response body
+- **Serilog replaces the default providers** (`ClearProviders` then `AddSerilog`), configured from the `Serilog` section of appsettings: console sink, `Information` default, with `Microsoft.AspNetCore` and `Microsoft.EntityFrameworkCore` at `Warning` — the second because EF logs every statement at `Information` and buries everything else
+- **One line per issuance call, logged on entry rather than after the save.** The signal is that somebody asked, which matters whether or not the call succeeded, and a request rejected for a bad count leaves no row to find later. It carries source IP, section and requested count; Serilog stamps the time, and time plus address is enough to query the database for what was actually minted. Nothing identifying a voucher is logged — not ids, not prefixes
+- **Rejections are logged at `Warning`** in `AdminOnlyEndpointFilter`, with method, path, address and a reason. A rejected admin call is either an operator with the wrong key or somebody probing for one, and the request never reaches an endpoint, so this is its only record
+- **The `key` field is not logged, at any level**, and neither is the attempted bearer token on a rejection — the first time somebody pastes the right key into the wrong tool, logging it would put the secret in the log
+- **Serilog gets `preserveStaticLogger: true`.** Otherwise the first host created in a process owns `Log.Logger` for every host after it, which inside a test run sends one host's output into another host's sinks. Nothing here uses Serilog's static API
+- **`ReadFrom.Services`** lets a sink registered in the container contribute beside the configured ones. That is the seam the logging tests use, since `AddSerilog` replaces `ILoggerFactory` with Serilog's own and an `ILoggerProvider` registered through DI records nothing
 
-**Done when:** the log line for a 20-voucher call carries ids and prefixes, and grepping the full log output for a plaintext key taken from that response finds nothing.
+**Done when:** an issuance call produces a line naming the section and requested count with no voucher data in it; a call with an unknown bearer produces a rejection line; and a search of the captured log finds neither a plaintext key from the response nor the attempted token. Covered by `VoucherIssuanceLoggingTests`, where each absence assertion is paired with a positive one — a search for an absent secret also passes when nothing was logged at all.
 
 **Done when (whole milestone):** all four substeps, exercised in one call — `curl` with an admin bearer token gets a JSON array of 20 voucher objects, and the log line for that call has ids and prefixes but not keys.
 
