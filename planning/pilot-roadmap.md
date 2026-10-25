@@ -93,6 +93,8 @@ _Detailed build plan: [tmp-milestone-3-passthrough-api.md](tmp-milestone-3-passt
 
 ## 4. Persistence
 
+_COMPLETE_ — see [Persistence/](../src/LlmVoucherGateway.Api/Persistence/)
+
 **SQLite and EF Core.** No new behavior of its own — it exists so issuance has somewhere to write (5b.1) and Milestone 6 has a row to look up.
 
 **Executed out of numeric order:** 5a and 5b were built before this, because neither needed a database. 5b.1 does, so this milestone lands between 5b and 5c. The numbering is left alone rather than churning cross-references.
@@ -101,7 +103,7 @@ _Detailed build plan: [tmp-milestone-3-passthrough-api.md](tmp-milestone-3-passt
 - Lives in `src/LlmVoucherGateway.Api/Persistence/`. One table does not justify a third project, and the constraint that matters — the domain stays persistence-ignorant — holds either way
 - Map the existing voucher aggregate: `VoucherKey` and `VoucherLifetime` as owned types, with a unique index on the key hash, which is what Milestone 6 looks up by
 - `Voucher` needs a private parameterless constructor. EF cannot bind owned types through a constructor, and its only constructor takes both value objects
-- Migration workflow settled and documented — one command, written down
+- Migration workflow settled and documented: `make migration name=AddSomething`, which writes to `Persistence/Migrations`. There is no separate update command, because startup applies whatever migrations exist
 - `Database.Migrate()` at startup, so the container is self-sufficient. Accepted tradeoff: schema changes apply on boot, which is right for one instance and wrong for two. Revisit only if the deployment stops being a single container
 
 **Why SQLite over Postgres:** the workload is one table, one indexed lookup per request, and one decrement after, for under 20 users whose requests occupy a GPU for seconds — the database is never the constraint. What SQLite buys is deployment: one container instead of two, no second service to sequence at startup, no database credentials to hold, and a materially shorter "it's down, what now" procedure in Milestone 9. Postgres remains the upgrade path and stays cheap, because with one aggregate and no provider-specific SQL it is a connection string and regenerated migrations. Take it if the deployment ever grows past a single API instance, or if a second tool needs to write concurrently.
@@ -116,7 +118,7 @@ _Detailed build plan: [tmp-milestone-3-passthrough-api.md](tmp-milestone-3-passt
 
 ## 5. Voucher issuance
 
-_IN PROGRESS: domain complete, 5a complete_ — see [Vouchers/](../src/LlmVoucherGateway.Domain/Vouchers/)
+_IN PROGRESS: 5a, 5b and 5b.1 complete; 5c and 5d remain_ — see [Vouchers/](../src/LlmVoucherGateway.Domain/Vouchers/)
 
 Admin endpoint over `Voucher.Issue`. It mints a batch and the response body is that batch. No file, and no enforcement on `/v1/chat/completions`. Lookup is Milestone 6 and is not a prerequisite. Persistence (Milestone 4) is not needed for 5a or 5b, but 5b.1 is where issuance starts writing, so Milestone 4 runs before it.
 
@@ -139,6 +141,8 @@ Resolution only. Written once, here; Milestone 6 fills in a branch rather than r
 **Done when:** a configured admin key resolves to an admin credential; a missing bearer, an unknown token, and the right secret under the wrong scheme all resolve to no credential; and the Milestone 3 harness run still passes through untouched.
 
 ### 5b. Issuance endpoint
+
+_COMPLETE_ — see [VoucherIssuanceEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/VoucherIssuanceEndpoint.cs)
 
 Unprotected: the route is open and 5c closes it. Build the thing, then guard it.
 
@@ -168,13 +172,15 @@ Whoever called it distributes that array. The API does not write a CSV or any ot
 
 ### 5b.1 Issuance writes, verified against a real database
 
-Requires Milestone 4. Until here, a minted batch existed only in the response body.
+_COMPLETE_ — see [VoucherIssuanceEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/VoucherIssuanceEndpoint.cs) and [VoucherIssuanceEndpointTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Endpoints/VoucherIssuanceEndpointTests.cs)
 
-- The endpoint saves the batch before returning it. The response is unchanged — plaintext keys still appear once and only there
-- The test hits the endpoint, then opens a **fresh** `DbContext` against the same database and asserts the stored rows: count, section, allowance, `consumed` of `0`, `Active`, lifetime values, prefix, and that hashing a returned plaintext key matches the stored hash. A fresh context is the point — asserting through the one that wrote would pass on EF's change tracker rather than on what landed on disk
-- A real database per test is cheap with SQLite: its own file (or a shared-cache in-memory database), created and dropped per test, no container and nothing to clean up between runs
-- **Use the SQLite provider, not EF's `InMemory` provider.** `InMemory` is not relational — it ignores the unique index on the key hash and has no real transactions, so it passes tests that fail against the actual database
-- Hashing a key to compare against the stored hash needs `VoucherKeyGenerator.Hash`, which is `internal` to the domain. Add an `InternalsVisibleTo` for the test project, as the API project already has
+Required Milestone 4. Until here, a minted batch existed only in the response body.
+
+This substep was written before Milestone 4 existed and shrank once it did: the per-test database, the choice of the SQLite provider over EF's non-relational `InMemory` one, the fresh-`DbContext` discipline, and the `InternalsVisibleTo` for `VoucherKeyGenerator.Hash` were all settled there. What was left is below.
+
+- The endpoint adds each voucher as it mints it and calls `SaveChangesAsync` once after the loop, so either every voucher in the response exists or none does — a partial write would hand out keys the gateway cannot honour, and the response is the only copy of them. The response itself is unchanged: plaintext keys still appear once and only there
+- The test posts a batch, then opens a fresh scope and asserts against the stored rows: one row per object returned, each returned key hashing to its stored `Key_Hash`, matching prefix, the plaintext never stored, and the batch policy — section, allowance, expiry — on every row. The hash assertion is the one that matters: Milestone 6 resolves a bearer token by hashing it and matching that column, so a mismatch would mean vouchers that can never be used
+- Field-by-field assertions on the aggregate stay in [VoucherRoundTripTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Persistence/VoucherRoundTripTests.cs) rather than being repeated here. That test is kept deliberately: it is the only one that exercises persistence without HTTP, so it localizes a failure to the mapping, and Milestones 7 and 8 write to the same aggregate
 
 **Done when:** a single issuance call is followed by a query that finds the expected rows, with hashes matching the keys from the response.
 
