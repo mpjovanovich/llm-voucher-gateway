@@ -2,8 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using LlmVoucherGateway.Api.Endpoints;
+using LlmVoucherGateway.Api.Persistence;
+using LlmVoucherGateway.Domain.Vouchers;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LlmVoucherGateway.Api.IntegrationTests.Endpoints;
 
@@ -81,6 +85,50 @@ public class VoucherIssuanceEndpointTests
         Assert.NotNull(issued);
         Assert.Equal(20, issued.Select(voucher => voucher.Id).Distinct().Count());
         Assert.Equal(20, issued.Select(voucher => voucher.Key).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task Issue_StoresOneVoucherPerObjectInTheResponse()
+    {
+        await using GatewayApplicationFactory factory = new();
+        using HttpClient client = factory.CreateClient();
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            IssuancePath,
+            new IssueVouchersRequest(Section, Count: 5, Allowance, ExpiresAt)
+        );
+
+        List<IssuedVoucherResponse>? issued =
+            await response.Content.ReadFromJsonAsync<List<IssuedVoucherResponse>>();
+
+        Assert.NotNull(issued);
+
+        using IServiceScope scope = factory.Services.CreateScope();
+        VoucherDbContext dbContext = scope.ServiceProvider.GetRequiredService<VoucherDbContext>();
+
+        List<Voucher> stored = await dbContext.Vouchers.ToListAsync();
+
+        Assert.Equal(issued.Count, stored.Count);
+
+        foreach (IssuedVoucherResponse issuedVoucher in issued)
+        {
+            Voucher storedVoucher = stored.Single(voucher => voucher.Id == issuedVoucher.Id);
+
+            // Milestone 6 resolves a bearer token by hashing it and matching this column,
+            // so a key that does not hash to its stored hash could never be used.
+            Assert.Equal(VoucherKeyGenerator.Hash(issuedVoucher.Key), storedVoucher.Key.Hash);
+            Assert.Equal(issuedVoucher.Prefix, storedVoucher.Key.Prefix);
+
+            // The secret itself is never stored.
+            Assert.NotEqual(issuedVoucher.Key, storedVoucher.Key.Hash);
+        }
+
+        Assert.All(stored, voucher =>
+        {
+            Assert.Equal(Section, voucher.Section);
+            Assert.Equal(Allowance, voucher.Allowance);
+            Assert.Equal(ExpiresAt, voucher.Lifetime.ExpiresAt);
+        });
     }
 
     [Theory]

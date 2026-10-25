@@ -1,3 +1,4 @@
+using LlmVoucherGateway.Api.Persistence;
 using LlmVoucherGateway.Domain.Abstractions;
 using LlmVoucherGateway.Domain.Vouchers;
 using Microsoft.Extensions.Options;
@@ -12,13 +13,15 @@ internal static class VoucherIssuanceEndpoint
 {
     public static void MapVoucherIssuance(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/admin/vouchers", Handle);
+        endpoints.MapPost("/admin/vouchers", HandleAsync);
     }
 
-    private static IResult Handle(
+    private static async Task<IResult> HandleAsync(
         IssueVouchersRequest request,
         IDateTimeProvider dateTimeProvider,
-        IOptions<VoucherIssuanceOptions> issuanceOptions
+        IOptions<VoucherIssuanceOptions> issuanceOptions,
+        VoucherDbContext dbContext,
+        CancellationToken cancellationToken
     )
     {
         // Count is the one rule the domain has no opinion on — it mints one voucher at a
@@ -47,8 +50,14 @@ internal static class VoucherIssuanceEndpoint
                 dateTimeProvider
             );
 
+            dbContext.Vouchers.Add(issuedVoucher.Voucher);
             issuedVouchers.Add(IssuedVoucherResponse.From(issuedVoucher));
         }
+
+        // One save for the whole batch, so either every voucher in the response exists
+        // or none does. A partial write would hand out keys the gateway cannot honour,
+        // and the response is the only copy of them.
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return Results.Ok(issuedVouchers);
     }
