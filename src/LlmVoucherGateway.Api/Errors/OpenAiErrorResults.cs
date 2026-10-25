@@ -20,13 +20,8 @@ internal static class OpenAiErrorResults
     public static IResult InvalidCredential(string message) =>
         Create(StatusCodes.Status401Unauthorized, InvalidRequestErrorType, message);
 
-    /// <summary>
-    /// 402 rather than 429: the credential is fine and the budget is not, which is a
-    /// different thing from being asked to slow down. Rate limiting, if it ever arrives,
-    /// needs 429 left free to mean that.
-    /// </summary>
     public static IResult AllowanceExhausted(string message) =>
-        Create(StatusCodes.Status402PaymentRequired, InsufficientQuotaErrorType, message);
+        Create(StatusCodes.Status403Forbidden, InsufficientQuotaErrorType, message);
 
     private static IResult Create(int statusCode, string type, string message)
     {

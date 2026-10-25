@@ -236,8 +236,7 @@ _COMPLETE_ — see [Errors/](../src/LlmVoucherGateway.Api/Errors/) and [OpenAiEr
 A writer that produces `{"error":{"message","type","param","code"}}` with a matching status code. Nothing uses it yet; this is the wire format every later rejection leaves through, and getting it wrong is the failure the milestone warns about.
 
 - `OpenAiError` is the envelope; `OpenAiErrorResults` exposes `InvalidCredential` and `AllowanceExhausted` as results a filter or endpoint returns
-- Status map: unknown credential, revoked and expired are all `401` with type `invalid_request_error`, and the message says which. Allowance exhausted is `402` with type `insufficient_quota`
-- **`402` rather than `429`:** "Payment Required" says the credential is fine and the budget is not, which is exactly the distinction a student needs. `429` means rate limiting, and Milestone 10 may want it for that actual purpose — spending it here would leave nothing to say "slow down" with
+- Status map: unknown credential, revoked and expired are all `401` with type `invalid_request_error`, and the message says which. Allowance exhausted is `403` with type `insufficient_quota`
 - **`code` is the numeric HTTP status, not a string.** OpenAI's own service sends a string there, but the captures show vLLM sending a number, and a client that copes with the relayed vLLM errors is the client we have to satisfy
 - The tests compare the generated field set against the captured payloads rather than against a shape written down in a test, so a field added or renamed here fails immediately. Status code and content type are asserted by executing the result against a bare `HttpContext`
 - The admin rejections from 5c keep their empty bodies. They are reached with curl by an operator, not parsed by a harness
@@ -268,7 +267,7 @@ _COMPLETE_ — see [Voucher.cs](../src/LlmVoucherGateway.Domain/Vouchers/Voucher
 - `Voucher.CheckSpendability(IDateTimeProvider)` returns a `VoucherSpendability`: spendable, or the reason it is not. The clock is passed in rather than read, so the rule can be exercised at the instant either side of a boundary
 - Pure domain: unit tests, no database and no HTTP
 - **Precedence is `Revoked`, then `Expired`, then `Exhausted`**, ordered by how deliberate each reason is so the holder is told the most actionable one. A voucher that is both revoked and expired reports revoked
-- **Two boundaries, both pinned by tests.** Expired *at* the expiry instant, not after it. Exhausted when consumption is *at or over* the allowance, not over it — recording happens after a request, so `Consumed` can land above `Allowance` and "over" would let an exhausted voucher through
+- **Two boundaries, both pinned by tests.** Expired _at_ the expiry instant, not after it. Exhausted when consumption is _at or over_ the allowance, not over it — recording happens after a request, so `Consumed` can land above `Allowance` and "over" would let an exhausted voucher through
 - **Two transitions were pulled forward to make the rules reachable.** `Voucher.Issue` always produces `Active` with `Consumed = 0`, so without them a unit test could not build a revoked or exhausted voucher at all. `Revoke()` is idempotent; its endpoint and the reason it records stay in Milestone 8. `RecordConsumption(int)` rejects a negative total and accepts one above the allowance, because a soft budget's overshoot is evidence rather than an error; reading `usage` and calling it stays in Milestone 7
 
 **Done when:** each reason is covered by a unit test at the boundary — expiring one tick either side, consumed equal to and over allowance.
@@ -289,10 +288,16 @@ Fills in the branch 5a left open.
 
 ### 6e. Enforcement on `/v1/chat/completions`
 
+_COMPLETE_ — see [VoucherRequiredEndpointFilter.cs](../src/LlmVoucherGateway.Api/Credentials/VoucherRequiredEndpointFilter.cs) and [VoucherRequiredEndpointFilterTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Credentials/VoucherRequiredEndpointFilterTests.cs)
+
 Mirrors `AdminOnlyEndpointFilter`: an endpoint filter that requires a voucher credential, asks 6c whether it is spendable, and returns 6a's body with the mapped status. The endpoint stops being open here.
 
 - Pass case uses 6b's fake, so the suite stays GPU-free
-- Each rejection reason gets a test asserting both the status and the error body
+- Each rejection reason gets a test asserting both the status and the error body, **and that nothing was forwarded upstream.** The GPU is the expensive resource, so "was it refused" and "did it still occupy a GPU" are different questions; the fake records what it was asked to forward precisely so the second one can be asked
+- **An admin key does not pass.** It is not a voucher, and admitting it would leave an unmetered path through the one endpoint that costs GPU time — the thing this gateway exists to meter. An operator who wants to exercise the endpoint mints a voucher first. It returns `401` rather than `403`, because the error contract carries only the two statuses a client needs to tell apart
+- The unmapped case in the reason switch refuses rather than admits, so a reason added to the enum later cannot silently open the endpoint
+- **Expiry is tested by moving a clock, not by waiting.** `IDateTimeProvider` is replaced in the test host with a settable clock, so a test mints a voucher and then advances past its expiry
+- Revocation and consumption are applied through the `DbContext` in tests, since the revoke endpoint is Milestone 8 and consumption recording is Milestone 7
 
 **Done when:** a valid voucher reaches the inference client; unknown, revoked, expired and exhausted vouchers each get the right status and an OpenAI-shaped body.
 
@@ -401,7 +406,7 @@ Changes from the first draft of this roadmap, kept for context:
 - **Credential middleware written once, in Milestone 5a.** Previously split between an admin check in issuance and a general resolver in validation.
 - **Persistence switched from Postgres to SQLite, and stopped being optional.** The original choice was recorded as "Postgres and EF Core" with a container in `docker-compose.yml`, but nothing was built against it. One table for under 20 users does not need a server, and a single container is the real win; the reasoning, the backup caveat, and the rejected Redis alternative are written into Milestone 4. The compose file's `postgres` service was removed.
 - **Admin authorization moved out of 5a, and now follows issuance as 5c.** 5a's bar named "an admin-only route," which is the thing 5b creates; a requirement has nothing to attach to before then. Pairing it with the endpoint in one step was the first fix, and splitting it to sit _after_ the endpoint was the second: an unprotected endpoint can be driven with `curl` and asserted on its own, so it makes a smaller increment than endpoint-plus-guard together. Logging became 5d. The original note that the middleware must precede the endpoint still holds — resolution is 5a — but "no open minting route at any point" was relaxed to "no open minting route outside the dev loop."
-- **Milestone 6 split into 6a–6g.** It was five bullets spanning a wire format, a test double, a domain rule, a lookup and an enforcement point, under a single bar that could only be checked with a harness on the GPU box. The substeps are ordered so each one is verifiable when it lands, with the three independent ones first; the harness check stays last because it is the only part that needs live vLLM. `402` was settled over `429` for an exhausted allowance there.
+- **Milestone 6 split into 6a–6g.** It was five bullets spanning a wire format, a test double, a domain rule, a lookup and an enforcement point, under a single bar that could only be checked with a harness on the GPU box. The substeps are ordered so each one is verifiable when it lands, with the three independent ones first; the harness check stays last because it is the only part that needs live vLLM. `403` was settled over `429` for an exhausted allowance there.
 - **Milestone 5 split into 5a/5b/5c.** It was three deliverables under one bar: the middleware, the endpoint, and the logging. The middleware is a prerequisite for the endpoint and is the thing Milestone 6 extends, so it gets its own done-when rather than being proven incidentally by a successful mint.
 - **Milestone 2's bar lowered to protocol, not edit quality.** A 0.5B model failing an agentic edit says nothing about the plumbing.
 - **No feasibility spike.** Hardware access is available and the shape is understood; pulling Milestone 10 forward would answer a question that isn't open.

@@ -1,3 +1,4 @@
+using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Inference;
 using Microsoft.AspNetCore.Http.Features;
 
@@ -10,7 +11,9 @@ internal static class ChatCompletionsEndpoint
 {
     public static void MapChatCompletions(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/v1/chat/completions", HandleAsync);
+        endpoints
+            .MapPost("/v1/chat/completions", HandleAsync)
+            .AddEndpointFilter<VoucherRequiredEndpointFilter>();
     }
 
     private static async Task HandleAsync(HttpContext httpContext, IInferenceClient inferenceClient)

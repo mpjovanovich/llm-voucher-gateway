@@ -1,8 +1,11 @@
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using LlmVoucherGateway.Api.Endpoints;
 using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Inference;
 using LlmVoucherGateway.Api.IntegrationTests.Inference;
 using LlmVoucherGateway.Api.Persistence;
+using LlmVoucherGateway.Domain.Abstractions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -29,6 +32,11 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
     /// what it did not.
     /// </summary>
     public FakeInferenceClient InferenceClient { get; } = new();
+
+    /// <summary>
+    /// The application's clock, so a test can advance past a voucher's expiry.
+    /// </summary>
+    public TestClock Clock { get; } = new();
 
     /// <summary>
     /// A database of this factory's own, so tests neither share state nor inherit the
@@ -58,6 +66,44 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
     /// </summary>
     public string LogOutput => _recordingSink.Output;
 
+    /// <summary>
+    /// Mints a voucher through the admin endpoint and returns its key. Tests that need a
+    /// usable credential get one the way a student does rather than by writing a row.
+    /// </summary>
+    public async Task<string> IssueVoucherKeyAsync(int allowance = 100_000, int expiresInDays = 30)
+    {
+        using HttpClient adminClient = CreateAdminClient();
+
+        using HttpResponseMessage response = await adminClient.PostAsJsonAsync(
+            "/admin/vouchers",
+            new IssueVouchersRequest(
+                "CSCI-101",
+                Count: 1,
+                allowance,
+                new DateTimeOffset(Clock.UtcNow, TimeSpan.Zero).AddDays(expiresInDays)
+            )
+        );
+
+        List<IssuedVoucherResponse>? issued =
+            await response.Content.ReadFromJsonAsync<List<IssuedVoucherResponse>>();
+
+        return Assert.Single(issued!).Key;
+    }
+
+    /// <summary>
+    /// A client bearing a freshly minted voucher, for tests about what an endpoint does
+    /// rather than about who may reach it.
+    /// </summary>
+    public async Task<HttpClient> CreateVoucherClientAsync()
+    {
+        string voucherKey = await IssueVoucherKeyAsync();
+
+        HttpClient client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", voucherKey);
+
+        return client;
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // The application's Serilog configuration reads sinks from the container, so
@@ -69,7 +115,10 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
         // Replaces the typed client registered in Program.cs, so nothing in the suite
         // depends on a reachable inference server.
         builder.ConfigureTestServices(services =>
-            services.AddSingleton<IInferenceClient>(InferenceClient));
+        {
+            services.AddSingleton<IInferenceClient>(InferenceClient);
+            services.AddSingleton<IDateTimeProvider>(Clock);
+        });
 
         builder.ConfigureAppConfiguration(configuration =>
             configuration.AddInMemoryCollection(

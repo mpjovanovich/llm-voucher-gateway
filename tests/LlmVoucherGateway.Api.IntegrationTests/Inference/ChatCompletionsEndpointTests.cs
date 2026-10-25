@@ -30,7 +30,7 @@ public class ChatCompletionsEndpointTests
     public async Task ChatCompletions_RelaysTheUpstreamResponseVerbatim()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = await factory.CreateVoucherClientAsync();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             ChatCompletionsPath,
@@ -49,7 +49,7 @@ public class ChatCompletionsEndpointTests
     public async Task ChatCompletions_ForwardsTheRequestBodyUnchanged()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = await factory.CreateVoucherClientAsync();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             ChatCompletionsPath,
@@ -68,7 +68,7 @@ public class ChatCompletionsEndpointTests
     public async Task ChatCompletions_WithStreamRequested_RelaysSseEndingInDone()
     {
         await using GatewayApplicationFactory factory = new();
-        using HttpClient client = factory.CreateClient();
+        using HttpClient client = await factory.CreateVoucherClientAsync();
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             ChatCompletionsPath,

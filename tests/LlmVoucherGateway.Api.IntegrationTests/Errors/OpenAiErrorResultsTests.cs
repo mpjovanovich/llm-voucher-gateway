@@ -61,14 +61,14 @@ public class OpenAiErrorResultsTests
     {
         JsonElement body = await ExecuteAsync(
             OpenAiErrorResults.AllowanceExhausted("Voucher allowance is exhausted."),
-            expectedStatusCode: HttpStatusCode.PaymentRequired
+            expectedStatusCode: HttpStatusCode.Forbidden
         );
 
         JsonElement error = body.GetProperty("error");
 
         // The distinction a student reads as "used it up" rather than "wrong key".
         Assert.Equal(OpenAiErrorResults.InsufficientQuotaErrorType, error.GetProperty("type").GetString());
-        Assert.Equal(402, error.GetProperty("code").GetInt32());
+        Assert.Equal(403, error.GetProperty("code").GetInt32());
     }
 
     private static string[] FieldNames(JsonElement element) =>

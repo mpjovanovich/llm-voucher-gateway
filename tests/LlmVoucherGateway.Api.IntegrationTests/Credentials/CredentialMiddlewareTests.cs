@@ -35,7 +35,7 @@ public class CredentialMiddlewareTests
     {
         await using CredentialProbeApplicationFactory factory = new();
 
-        string voucherKey = await IssueVoucherKeyAsync(factory);
+        string voucherKey = await factory.IssueVoucherKeyAsync();
 
         Assert.Equal(
             CredentialProbeApplicationFactory.VoucherCredential,
@@ -48,7 +48,7 @@ public class CredentialMiddlewareTests
     {
         await using CredentialProbeApplicationFactory factory = new();
 
-        string voucherKey = await IssueVoucherKeyAsync(factory);
+        string voucherKey = await factory.IssueVoucherKeyAsync();
 
         using (IServiceScope scope = factory.Services.CreateScope())
         {
@@ -66,21 +66,6 @@ public class CredentialMiddlewareTests
             CredentialProbeApplicationFactory.VoucherCredential,
             await ProbeAsync(factory, $"Bearer {voucherKey}")
         );
-    }
-
-    private static async Task<string> IssueVoucherKeyAsync(GatewayApplicationFactory factory)
-    {
-        using HttpClient adminClient = factory.CreateAdminClient();
-
-        using HttpResponseMessage response = await adminClient.PostAsJsonAsync(
-            "/admin/vouchers",
-            new IssueVouchersRequest("CSCI-101", Count: 1, Allowance: 100_000, DateTimeOffset.UtcNow.AddDays(30))
-        );
-
-        List<IssuedVoucherResponse>? issued =
-            await response.Content.ReadFromJsonAsync<List<IssuedVoucherResponse>>();
-
-        return Assert.Single(issued!).Key;
     }
 
     private static async Task<string> ProbeAsync(
