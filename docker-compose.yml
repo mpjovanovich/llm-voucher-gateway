@@ -1,12 +1,6 @@
-services:
-  llm-voucher-gateway.database:
-    image: postgres:18
-    container_name: LlmVoucherGateway.Database
-    environment:
-      - POSTGRES_DB=llm_voucher_gateway
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-    volumes:
-      - ./.containers/db:/var/lib/postgresql
-    ports:
-      - 5432:5432
+# The gateway's own service lands here in Milestone 9 (operational readiness), together
+# with the volume mount holding the SQLite database file. The Postgres service that used
+# to live here was removed when persistence moved to SQLite — see Milestone 4 in
+# planning/pilot-roadmap.md.
+#
+# vLLM runs from docker-compose.llm.yml: make up-llm

@@ -93,11 +93,22 @@ _Detailed build plan: [tmp-milestone-3-passthrough-api.md](tmp-milestone-3-passt
 
 ## 4. Persistence
 
-Postgres and EF Core. No new behavior. Issuance (Milestone 5) returns the batch in the response and does not need this. This exists so Milestone 6 has a row to look up.
+**SQLite and EF Core.** No new behavior of its own — it exists so issuance has somewhere to write (5b.1) and Milestone 6 has a row to look up.
 
-- `DbContext`, connection string from configuration, container already in [docker-compose.yml](../docker-compose.yml)
-- Map the existing voucher aggregate: `VoucherKey` and `VoucherLifetime` as owned types
+**Executed out of numeric order:** 5a and 5b were built before this, because neither needed a database. 5b.1 does, so this milestone lands between 5b and 5c. The numbering is left alone rather than churning cross-references.
+
+- `DbContext`, database file path from configuration and validated at startup like the other options
+- Lives in `src/LlmVoucherGateway.Api/Persistence/`. One table does not justify a third project, and the constraint that matters — the domain stays persistence-ignorant — holds either way
+- Map the existing voucher aggregate: `VoucherKey` and `VoucherLifetime` as owned types, with a unique index on the key hash, which is what Milestone 6 looks up by
+- `Voucher` needs a private parameterless constructor. EF cannot bind owned types through a constructor, and its only constructor takes both value objects
 - Migration workflow settled and documented — one command, written down
+- `Database.Migrate()` at startup, so the container is self-sufficient. Accepted tradeoff: schema changes apply on boot, which is right for one instance and wrong for two. Revisit only if the deployment stops being a single container
+
+**Why SQLite over Postgres:** the workload is one table, one indexed lookup per request, and one decrement after, for under 20 users whose requests occupy a GPU for seconds — the database is never the constraint. What SQLite buys is deployment: one container instead of two, no second service to sequence at startup, no database credentials to hold, and a materially shorter "it's down, what now" procedure in Milestone 9. Postgres remains the upgrade path and stays cheap, because with one aggregate and no provider-specific SQL it is a connection string and regenerated migrations. Take it if the deployment ever grows past a single API instance, or if a second tool needs to write concurrently.
+
+**Backups cannot be `cp`.** In WAL mode committed data is spread across the main file and the WAL, so copying a live database can capture a torn state. The periodic job runs `sqlite3 vouchers.db ".backup /mnt/backup/vouchers.db"` or `VACUUM INTO` — same cron shape, consistent snapshot, no need to stop the service.
+
+**Single writer, accepted.** SQLite serializes writes; WAL plus a `busy_timeout` keeps readers unaffected. Our writes are rare and short — one per issuance call, one per completed request. This is the limit that would eventually force Postgres, not read volume.
 
 **Done when:** a migration creates the voucher table and a round-trip test saves and reloads a voucher with its value objects intact.
 
@@ -107,7 +118,7 @@ Postgres and EF Core. No new behavior. Issuance (Milestone 5) returns the batch 
 
 _IN PROGRESS: domain complete, 5a complete_ — see [Vouchers/](../src/LlmVoucherGateway.Domain/Vouchers/)
 
-Admin endpoint over `Voucher.Issue`. It mints a batch and the response body is that batch. No database, no file, no enforcement on `/v1/chat/completions`. Persistence is Milestone 4; lookup is Milestone 6. Neither is a prerequisite.
+Admin endpoint over `Voucher.Issue`. It mints a batch and the response body is that batch. No file, and no enforcement on `/v1/chat/completions`. Lookup is Milestone 6 and is not a prerequisite. Persistence (Milestone 4) is not needed for 5a or 5b, but 5b.1 is where issuance starts writing, so Milestone 4 runs before it.
 
 `Voucher.Issue`, `VoucherKey` and `VoucherKeyGenerator` already exist, so all four substeps below are API-side.
 
@@ -155,15 +166,17 @@ Whoever called it distributes that array. The API does not write a CSV or any ot
 
 **Done when:** `curl` with no bearer token at all gets a JSON array of 20 voucher objects, and each bad request above gets a `400` instead of a `500`.
 
-### 5b.1 Itegration test with database
+### 5b.1 Issuance writes, verified against a real database
 
-At this point we need to confirm that database records are actually created.
+Requires Milestone 4. Until here, a minted batch existed only in the response body.
 
-I've read that it's now pretty cheap to set up an automated test with an actual database, but haven't actually done so.
+- The endpoint saves the batch before returning it. The response is unchanged — plaintext keys still appear once and only there
+- The test hits the endpoint, then opens a **fresh** `DbContext` against the same database and asserts the stored rows: count, section, allowance, `consumed` of `0`, `Active`, lifetime values, prefix, and that hashing a returned plaintext key matches the stored hash. A fresh context is the point — asserting through the one that wrote would pass on EF's change tracker rather than on what landed on disk
+- A real database per test is cheap with SQLite: its own file (or a shared-cache in-memory database), created and dropped per test, no container and nothing to clean up between runs
+- **Use the SQLite provider, not EF's `InMemory` provider.** `InMemory` is not relational — it ignores the unique index on the key hash and has no real transactions, so it passes tests that fail against the actual database
+- Hashing a key to compare against the stored hash needs `VoucherKeyGenerator.Hash`, which is `internal` to the domain. Add an `InternalsVisibleTo` for the test project, as the API project already has
 
-Can't remember what we decided for this choice - EF Core w/ migrations?
-
-**Done when:** We can hit the issuance endpoint, then query the database and confirm records have the expected values.
+**Done when:** a single issuance call is followed by a query that finds the expected rows, with hashes matching the keys from the response.
 
 ### 5c. Admin authorization
 
@@ -293,6 +306,7 @@ Changes from the first draft of this roadmap, kept for context:
 - **Milestone 5 returns a JSON array and does not require persistence.** The earlier bar — return plaintext, done when you have a distributable CSV — mixed the one-time secret with a file format and tied minting to the database. The secret is the `key` field on each object. Storing the hash waits for Milestone 4; looking it up waits for Milestone 6.
 - **Cache removed from voucher validation.** Premature at this scale, and it bought a revocation delay.
 - **Credential middleware written once, in Milestone 5a.** Previously split between an admin check in issuance and a general resolver in validation.
+- **Persistence switched from Postgres to SQLite, and stopped being optional.** The original choice was recorded as "Postgres and EF Core" with a container in `docker-compose.yml`, but nothing was built against it. One table for under 20 users does not need a server, and a single container is the real win; the reasoning, the backup caveat, and the rejected Redis alternative are written into Milestone 4. The compose file's `postgres` service was removed.
 - **Admin authorization moved out of 5a, and now follows issuance as 5c.** 5a's bar named "an admin-only route," which is the thing 5b creates; a requirement has nothing to attach to before then. Pairing it with the endpoint in one step was the first fix, and splitting it to sit _after_ the endpoint was the second: an unprotected endpoint can be driven with `curl` and asserted on its own, so it makes a smaller increment than endpoint-plus-guard together. Logging became 5d. The original note that the middleware must precede the endpoint still holds — resolution is 5a — but "no open minting route at any point" was relaxed to "no open minting route outside the dev loop."
 - **Milestone 5 split into 5a/5b/5c.** It was three deliverables under one bar: the middleware, the endpoint, and the logging. The middleware is a prerequisite for the endpoint and is the thing Milestone 6 extends, so it gets its own done-when rather than being proven incidentally by a successful mint.
 - **Milestone 2's bar lowered to protocol, not edit quality.** A 0.5B model failing an agentic edit says nothing about the plumbing.

@@ -8,7 +8,7 @@ tested without a GPU. Captured generously per the roadmap's instruction — anyt
 - **vLLM image (pinned):** `vllm/vllm-openai:v0.29.0`
 - **Model served:** `Qwen/Qwen2.5-0.5B-Instruct`
 - **`max_model_len`:** 32768
-- **Launch command:** `--model Qwen/Qwen2.5-0.5B-Instruct --gpu-memory-utilization 0.85` (see [docker-compose.yml](../docker-compose.yml))
+- **Launch command:** `--model Qwen/Qwen2.5-0.5B-Instruct --gpu-memory-utilization 0.85` (see [docker-compose.llm.yml](../docker-compose.llm.yml))
 - **Capture date:** 2026-09-11
 
 ## Contents
@@ -71,10 +71,10 @@ produced 961 chunks against 750 for the other five. Compare timing shapes, not t
 
 ## Regenerating this capture set
 
-With the compose stack running (`docker compose up`), see the `curl` examples at
-the top of each file. The comments at the top of
-[docker-compose.yml](../docker-compose.yml) show the base request shapes this
-capture set was built from.
+With vLLM running (`make up-llm`), see the `curl` examples at the top of each
+file. The comments at the top of
+[docker-compose.llm.yml](../docker-compose.llm.yml) show the base request shapes
+this capture set was built from.
 
 ## Feeds forward to
 
