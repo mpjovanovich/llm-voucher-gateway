@@ -108,7 +108,7 @@ _Detailed build plan: [tmp-milestone-3-passthrough-api.md](tmp-milestone-3-passt
 
 **Backups cannot be `cp`.** In WAL mode committed data is spread across the main file and the WAL, so copying a live database can capture a torn state. The periodic job runs `sqlite3 vouchers.db ".backup /mnt/backup/vouchers.db"` or `VACUUM INTO` — same cron shape, consistent snapshot, no need to stop the service.
 
-**Single writer, accepted.** SQLite serializes writes; WAL plus a `busy_timeout` keeps readers unaffected. Our writes are rare and short — one per issuance call, one per completed request. This is the limit that would eventually force Postgres, not read volume.
+**Single writer, accepted.** SQLite serializes writes, and WAL mode keeps readers unaffected while a write is in flight. Nothing to configure: EF Core's SQLite provider issues `PRAGMA journal_mode = 'wal'` itself, and Microsoft.Data.Sqlite retries a busy database for the duration of the command timeout, 30 seconds by default — both confirmed against the database the first migration created. Our writes are rare and short anyway, one per issuance call and one per completed request. This is the limit that would eventually force Postgres, not read volume.
 
 **Done when:** a migration creates the voucher table and a round-trip test saves and reloads a voucher with its value objects intact.
 
