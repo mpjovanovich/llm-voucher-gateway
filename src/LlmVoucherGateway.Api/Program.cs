@@ -72,6 +72,19 @@ builder.Services.AddHttpClient<IInferenceClient, VllmInferenceClient>((servicePr
 
 WebApplication app = builder.Build();
 
+using (IServiceScope scope = app.Services.CreateScope())
+{
+    DatabaseOptions databaseOptions = scope.ServiceProvider
+        .GetRequiredService<IOptions<DatabaseOptions>>().Value;
+
+    // SQLite creates the database file on demand but not the directory holding it.
+    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(databaseOptions.Path))!);
+
+    // Applied on boot so the container is self-sufficient. This is right for one
+    // instance and wrong for two, because both would race to apply the same migration.
+    await scope.ServiceProvider.GetRequiredService<VoucherDbContext>().Database.MigrateAsync();
+}
+
 // First in the pipeline so it covers everything downstream, including the
 // credential middleware.
 app.UseExceptionHandler();

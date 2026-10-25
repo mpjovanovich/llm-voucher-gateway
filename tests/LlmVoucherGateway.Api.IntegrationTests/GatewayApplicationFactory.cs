@@ -3,6 +3,7 @@ using LlmVoucherGateway.Api.Inference;
 using LlmVoucherGateway.Api.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 
 namespace LlmVoucherGateway.Api.IntegrationTests;
@@ -18,8 +19,7 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
 
     /// <summary>
     /// A database of this factory's own, so tests neither share state nor inherit the
-    /// developer's file. Nothing opens it yet; deleting it on dispose arrives with the
-    /// first test that does.
+    /// developer's file. Startup migrates it into existence, and disposing deletes it.
     /// </summary>
     public string DatabasePath { get; } = System.IO.Path.Combine(
         System.IO.Path.GetTempPath(),
@@ -43,5 +43,34 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
                 }
             )
         );
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+
+        if (disposing)
+        {
+            DeleteDatabase();
+        }
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+
+        DeleteDatabase();
+    }
+
+    private void DeleteDatabase()
+    {
+        // Connections are pooled, so the file can still be held open after the host is
+        // gone. The -wal and -shm companions only exist in WAL mode; File.Delete is a
+        // no-op when they do not.
+        SqliteConnection.ClearAllPools();
+
+        File.Delete(DatabasePath);
+        File.Delete($"{DatabasePath}-wal");
+        File.Delete($"{DatabasePath}-shm");
     }
 }

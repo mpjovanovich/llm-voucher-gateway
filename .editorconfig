@@ -397,3 +397,8 @@ dotnet_diagnostic.S4136.severity = none
 
 # S6605: Collection-specific "Exists" method should be used instead of the "Any" extension
 dotnet_diagnostic.S6605.severity = none
+
+# EF Core writes these files and rewrites them whenever a migration is added, so the
+# style and public-API rules cannot be satisfied without edits that would be lost.
+[**/Persistence/Migrations/*.cs]
+generated_code = true

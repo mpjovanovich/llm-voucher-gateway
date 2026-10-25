@@ -1,5 +1,5 @@
 # Needed so that Make knows these are not actual files
-.PHONY: clean down run-api up-llm
+.PHONY: clean down migration run-api up-llm
 
 # Removes bin and obj folders from all projects
 clean:
@@ -8,6 +8,12 @@ clean:
 # Stops the stack
 down:
 	docker compose -f docker-compose.llm.yml down
+
+# Adds an EF Core migration: make migration name=AddSomething
+# Startup applies whatever migrations exist, so there is no separate update command.
+migration:
+	ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations add $(name) \
+		--project src/LlmVoucherGateway.Api --output-dir Persistence/Migrations
 
 # vLLM instance
 up-llm:
