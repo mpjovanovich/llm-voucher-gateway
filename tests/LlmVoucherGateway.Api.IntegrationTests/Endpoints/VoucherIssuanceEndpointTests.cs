@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using LlmVoucherGateway.Api.Endpoints;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 
 namespace LlmVoucherGateway.Api.IntegrationTests.Endpoints;
 
@@ -127,6 +129,71 @@ public class VoucherIssuanceEndpointTests
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Issue_WithCountAboveTheDefaultCap_ReturnsBadRequest()
+    {
+        await using GatewayApplicationFactory factory = new();
+        using HttpClient client = factory.CreateClient();
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            IssuancePath,
+            new IssueVouchersRequest(
+                Section,
+                VoucherIssuanceOptions.DefaultMaxPerRequest + 1,
+                Allowance,
+                ExpiresAt
+            )
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("count", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Issue_WithConfiguredCap_EnforcesThatCapRatherThanTheDefault()
+    {
+        const int configuredCap = 2;
+
+        await using CappedApplicationFactory factory = new(configuredCap);
+        using HttpClient client = factory.CreateClient();
+
+        using HttpResponseMessage atCap = await client.PostAsJsonAsync(
+            IssuancePath,
+            new IssueVouchersRequest(Section, configuredCap, Allowance, ExpiresAt)
+        );
+
+        using HttpResponseMessage overCap = await client.PostAsJsonAsync(
+            IssuancePath,
+            new IssueVouchersRequest(Section, configuredCap + 1, Allowance, ExpiresAt)
+        );
+
+        Assert.Equal(HttpStatusCode.OK, atCap.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, overCap.StatusCode);
+    }
+
+    /// <summary>
+    /// Proves the cap is read from configuration rather than being the compiled-in
+    /// default, which a test against <see cref="VoucherIssuanceOptions.DefaultMaxPerRequest"/>
+    /// alone cannot distinguish.
+    /// </summary>
+    private sealed class CappedApplicationFactory(int maxPerRequest) : GatewayApplicationFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+
+            builder.ConfigureAppConfiguration(configuration =>
+                configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        [$"{VoucherIssuanceOptions.SectionName}:{nameof(VoucherIssuanceOptions.MaxPerRequest)}"] =
+                            maxPerRequest.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    }
+                )
+            );
+        }
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using LlmVoucherGateway.Domain.Abstractions;
 using LlmVoucherGateway.Domain.Vouchers;
+using Microsoft.Extensions.Options;
 
 namespace LlmVoucherGateway.Api.Endpoints;
 
@@ -14,17 +15,23 @@ internal static class VoucherIssuanceEndpoint
         endpoints.MapPost("/admin/vouchers", Handle);
     }
 
-    private static IResult Handle(IssueVouchersRequest request, IDateTimeProvider dateTimeProvider)
+    private static IResult Handle(
+        IssueVouchersRequest request,
+        IDateTimeProvider dateTimeProvider,
+        IOptions<VoucherIssuanceOptions> issuanceOptions
+    )
     {
         // Count is the one rule the domain has no opinion on — it mints one voucher at a
         // time. Allowance and expiry are the aggregate's rules, so they are left to it
         // and reach the caller as a 400 through the exception handler.
-        if (request.Count <= 0)
+        int maxPerRequest = issuanceOptions.Value.MaxPerRequest;
+
+        if (request.Count <= 0 || request.Count > maxPerRequest)
         {
             return Results.ValidationProblem(
                 new Dictionary<string, string[]>
                 {
-                    ["count"] = ["Count must be a positive integer."],
+                    ["count"] = [$"Count must be between 1 and {maxPerRequest}."],
                 }
             );
         }
