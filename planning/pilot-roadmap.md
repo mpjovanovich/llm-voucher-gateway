@@ -231,10 +231,15 @@ Fill in the voucher branch of the middleware from Milestone 5a. Requests without
 
 ### 6a. The OpenAI error contract
 
+_COMPLETE_ — see [Errors/](../src/LlmVoucherGateway.Api/Errors/) and [OpenAiErrorResultsTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Errors/OpenAiErrorResultsTests.cs)
+
 A writer that produces `{"error":{"message","type","param","code"}}` with a matching status code. Nothing uses it yet; this is the wire format every later rejection leaves through, and getting it wrong is the failure the milestone warns about.
 
-- Status map: unknown credential, revoked and expired are all `401`; allowance exhausted is `402`
+- `OpenAiError` is the envelope; `OpenAiErrorResults` exposes `InvalidCredential` and `AllowanceExhausted` as results a filter or endpoint returns
+- Status map: unknown credential, revoked and expired are all `401` with type `invalid_request_error`, and the message says which. Allowance exhausted is `402` with type `insufficient_quota`
 - **`402` rather than `429`:** "Payment Required" says the credential is fine and the budget is not, which is exactly the distinction a student needs. `429` means rate limiting, and Milestone 10 may want it for that actual purpose — spending it here would leave nothing to say "slow down" with
+- **`code` is the numeric HTTP status, not a string.** OpenAI's own service sends a string there, but the captures show vLLM sending a number, and a client that copes with the relayed vLLM errors is the client we have to satisfy
+- The tests compare the generated field set against the captured payloads rather than against a shape written down in a test, so a field added or renamed here fails immediately. Status code and content type are asserted by executing the result against a bare `HttpContext`
 - The admin rejections from 5c keep their empty bodies. They are reached with curl by an operator, not parsed by a harness
 
 **Done when:** the serialized output matches the captured payloads field for field, asserted in tests.

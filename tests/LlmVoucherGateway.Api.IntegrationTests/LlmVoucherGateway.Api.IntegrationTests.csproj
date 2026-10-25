@@ -29,6 +29,9 @@
     <Content Include="..\..\api_documentation\chat-completions\streaming-response.md"
              Link="Captures\streaming-response.md"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\api_documentation\errors\*.json"
+             Link="Captures\errors\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
