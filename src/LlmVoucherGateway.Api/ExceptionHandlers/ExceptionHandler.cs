@@ -53,6 +53,15 @@ internal sealed class ExceptionHandler(
     private static ExceptionDetails GetExceptionDetails(Exception exception) =>
         exception switch
         {
+            // Thrown by model binding before an endpoint is entered — unparseable JSON,
+            // a body that is too large. It carries the status the framework would have
+            // used had this handler not been in the way.
+            BadHttpRequestException badHttpRequestException => new ExceptionDetails(
+                badHttpRequestException.StatusCode,
+                "Invalid request",
+                badHttpRequestException.Message,
+                null
+            ),
             // The domain rejects bad input with ArgumentException-derived types, so an
             // admin sees 400 rather than 500. The tradeoff: a genuine argument bug in our
             // own code also reports as a bad request. If that ever misleads, give the

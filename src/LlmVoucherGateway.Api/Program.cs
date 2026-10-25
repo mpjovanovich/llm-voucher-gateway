@@ -50,4 +50,7 @@ app.UseMiddleware<CredentialMiddleware>();
 
 app.MapChatCompletions();
 
+// Unprotected until Milestone 5c adds the admin requirement.
+app.MapVoucherIssuance();
+
 await app.RunAsync();
