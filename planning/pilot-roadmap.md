@@ -303,19 +303,23 @@ Mirrors `AdminOnlyEndpointFilter`: an endpoint filter that requires a voucher cr
 
 ### 6f. Rejection logging
 
+_COMPLETE_ — see [VoucherRequiredEndpointFilter.cs](../src/LlmVoucherGateway.Api/Credentials/VoucherRequiredEndpointFilter.cs)
+
 Extends what 5d established for admin rejections.
 
-- `Warning` per rejection with source address and reason. The reason is what distinguishes "wrong key" from "used it up" in a post-mortem
-- Same paired assertions as 5d: the rejection line is present, and neither the attempted token nor any issued key appears in the log
+- `Warning` per rejection with method, path, source address and reason: `no voucher credential`, `voucher revoked`, `voucher expired`, `voucher allowance exhausted`. The reason is what distinguishes "wrong key" from "used it up" in a post-mortem
+- No voucher id or prefix, consistent with 5d — the time and the address are the handle for querying the database. The presented token is never logged
+- **Deliberately not covered by tests.** A log line is not a business rule, and the leak risk this would guard against is structural rather than behavioural: the line is built from method, path, address and a fixed reason string, none of which is a secret. Verified by hand instead — two rejected requests produced their lines, and the attempted token appeared nowhere in the output. The secret-in-log guard that does exist stays on issuance, where the response body holds the only copy of a key
 
-**Done when:** each rejection reason produces a line naming it, and a search of captured output finds no secret.
+**Done when:** each rejection reason produces a line naming it.
 
 ### 6g. Harness verification
 
 **Requires live vLLM**, so this runs on the GPU box and is the only substep that cannot be done here.
 
-- Point Aider at the gateway with a valid voucher and redo the Milestone 2 task
+- Point Aider at the gateway with a valid voucher and redo the Milestone 2 task. The voucher goes in `OPENAI_API_KEY`, which is what the harness sends as the bearer token — mint one with `POST /admin/vouchers` first, since the Milestone 2 and 3 runs predate enforcement and used no credential at all
 - Repeat with a revoked voucher and confirm the failure is legible in the harness rather than a crash or silence
+- Watch for the `402` case specifically: a `401` is a shape harnesses expect, while `402` is unusual enough that a client may render it poorly. If it does, that is an argument for revisiting the 6a status map, not for hiding the distinction
 
 **Done when (whole milestone):** a valid voucher works, an invalid one fails cleanly _in the harness_, not just in curl.
 

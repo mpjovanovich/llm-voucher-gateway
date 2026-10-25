@@ -2,17 +2,42 @@
 #   make up-llm && make run-api
 #
 # Runs in VS Code (REST Client extension), Visual Studio, and Rider.
-# Swap @baseUrl to http://localhost:8000 to hit vLLM directly for comparison.
+# Swap @baseUrl to http://localhost:8000 to hit vLLM directly for comparison — note
+# that vLLM has no concept of vouchers, so the Authorization header is ignored there.
 #
 # Editor HTTP clients may hold a streamed response until it completes, so they show
 # that streaming *works* but not that it is *unbuffered*. For timing, use the curl
 # method in api_documentation/README.md ("Streaming baseline").
+#
+# Since Milestone 6, /v1/chat/completions requires a voucher. Run "Issue vouchers"
+# below first, copy the `key` from the response into @voucherKey, and the chat requests
+# will work. Without it they return 401 with an OpenAI-shaped error body. The key is in
+# that response and nowhere else — the database keeps only its hash.
 
 @baseUrl = http://localhost:5131
+
+# Matches Admin:Keys in appsettings.Development.json.
+@adminKey = dev-admin-key
+
+# Paste a `key` from the issuance response here.
+@voucherKey = paste-an-issued-voucher-key-here
+
+### Issue vouchers (admin only)
+POST {{baseUrl}}/admin/vouchers
+Content-Type: application/json
+Authorization: Bearer {{adminKey}}
+
+{
+  "section": "CSCI-101",
+  "count": 3,
+  "allowance": 100000,
+  "expiresAt": "2027-06-30T23:59:59Z"
+}
 
 ### Non-streaming chat completion
 POST {{baseUrl}}/v1/chat/completions
 Content-Type: application/json
+Authorization: Bearer {{voucherKey}}
 
 {
   "model": "Qwen/Qwen2.5-0.5B-Instruct",
@@ -22,9 +47,19 @@ Content-Type: application/json
 ### Streaming chat completion (SSE chunks ending in [DONE])
 POST {{baseUrl}}/v1/chat/completions
 Content-Type: application/json
+Authorization: Bearer {{voucherKey}}
 
 {
   "model": "Qwen/Qwen2.5-0.5B-Instruct",
   "messages": [{ "role": "user", "content": "Say hello in one sentence." }],
   "stream": true
+}
+
+### Rejected: no voucher (401, OpenAI-shaped error)
+POST {{baseUrl}}/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "messages": [{ "role": "user", "content": "Say hello in one sentence." }]
 }

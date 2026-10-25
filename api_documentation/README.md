@@ -37,11 +37,30 @@ numbers.**
   ```bash
   curl -N -s http://localhost:5131/v1/chat/completions \
       -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $VOUCHER_KEY" \
       -d '{"model":"Qwen/Qwen2.5-0.5B-Instruct",
            "messages":[{"role":"user","content":"Count slowly from 1 to 50."}],
            "stream":true}' \
     | while IFS= read -r line; do printf '%s %s\n' "$(date +%s.%3N)" "$line"; done
   ```
+
+  **Since Milestone 6 this endpoint requires a voucher.** The baseline above was
+  recorded while it was open, so rerunning it means minting one first and exporting it
+  as `VOUCHER_KEY`:
+
+  ```bash
+  curl -s http://localhost:5131/admin/vouchers \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer dev-admin-key" \
+      -d '{"section":"timing","count":1,"allowance":1000000,
+           "expiresAt":"2027-06-30T23:59:59Z"}'
+  ```
+
+  The response is a JSON array; `key` from its single object is the bearer token, and
+  that response is the only place it exists. Allow enough allowance for the run —
+  consumption is not yet recorded (Milestone 7), but a voucher that starts exhausted is
+  refused with `402`. Against vLLM directly on `:8000` the header is ignored, since vLLM
+  has no concept of vouchers.
 
 **"Count slowly from 1 to 50."** — 207 chunks, `max_tokens: 512`
 
