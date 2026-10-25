@@ -261,14 +261,15 @@ A stand-in replaying the Milestone 1 captures, registered by the test factory in
 
 ### 6c. Domain: when is a voucher spendable?
 
-_IN PROGRESS: expiry done; revoked and exhausted remain_ — see [Voucher.cs](../src/LlmVoucherGateway.Domain/Vouchers/Voucher.cs) and [VoucherSpendabilityTests.cs](../tests/LlmVoucherGateway.Domain.UnitTests/Vouchers/VoucherSpendabilityTests.cs)
+_COMPLETE_ — see [Voucher.cs](../src/LlmVoucherGateway.Domain/Vouchers/Voucher.cs) and [VoucherSpendabilityTests.cs](../tests/LlmVoucherGateway.Domain.UnitTests/Vouchers/VoucherSpendabilityTests.cs)
 
 `Status`, `Lifetime` and `Consumed` are currently just data — nothing in the aggregate can answer whether a voucher may be spent.
 
 - `Voucher.CheckSpendability(IDateTimeProvider)` returns a `VoucherSpendability`: spendable, or the reason it is not. The clock is passed in rather than read, so the rule can be exercised at the instant either side of a boundary
 - Pure domain: unit tests, no database and no HTTP
-- **Expiry first, because it is the only rule reachable from the public surface.** `Voucher.Issue` always produces `Active` with `Consumed = 0`, and there is no `Revoke` until Milestone 8, so a unit test cannot yet build a revoked or exhausted voucher. Expiry needs nothing but a different clock. Expired *at* the expiry instant, not after it
-- **Still to add:** `Revoked`, which needs a way to revoke — either pulling a small `Revoke` method forward from Milestone 8 or testing through EF materialization — and `Exhausted`, which needs `Consumed` to be settable, the same question Milestone 7 answers when it starts recording consumption. Exhaustion is a read here either way; writing `Consumed` stays in Milestone 7
+- **Precedence is `Revoked`, then `Expired`, then `Exhausted`**, ordered by how deliberate each reason is so the holder is told the most actionable one. A voucher that is both revoked and expired reports revoked
+- **Two boundaries, both pinned by tests.** Expired *at* the expiry instant, not after it. Exhausted when consumption is *at or over* the allowance, not over it — recording happens after a request, so `Consumed` can land above `Allowance` and "over" would let an exhausted voucher through
+- **Two transitions were pulled forward to make the rules reachable.** `Voucher.Issue` always produces `Active` with `Consumed = 0`, so without them a unit test could not build a revoked or exhausted voucher at all. `Revoke()` is idempotent; its endpoint and the reason it records stay in Milestone 8. `RecordConsumption(int)` rejects a negative total and accepts one above the allowance, because a soft budget's overshoot is evidence rather than an error; reading `usage` and calling it stays in Milestone 7
 
 **Done when:** each reason is covered by a unit test at the boundary — expiring one tick either side, consumed equal to and over allowance.
 

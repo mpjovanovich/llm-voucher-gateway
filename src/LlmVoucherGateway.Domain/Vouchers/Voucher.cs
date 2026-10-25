@@ -44,6 +44,13 @@ public sealed class Voucher : Entity
     /// </summary>
     public VoucherSpendability CheckSpendability(IDateTimeProvider dateTimeProvider)
     {
+        // Ordered by how deliberate each reason is, so the holder is told the most
+        // actionable one first.
+        if (Status == VoucherStatus.Revoked)
+        {
+            return VoucherSpendability.Revoked;
+        }
+
         // Expired at the instant of expiry, not after it: the voucher is valid up to
         // that point and not including it.
         if (dateTimeProvider.UtcNow >= Lifetime.ExpiresAt)
@@ -51,7 +58,38 @@ public sealed class Voucher : Entity
             return VoucherSpendability.Expired;
         }
 
+        // Recording happens after a request, so Consumed can land above Allowance and
+        // the comparison has to be "at or over" rather than "over".
+        if (Consumed >= Allowance)
+        {
+            return VoucherSpendability.Exhausted;
+        }
+
         return VoucherSpendability.Spendable;
+    }
+
+    // Idempotent: revoking a revoked voucher already satisfies the caller's intent. The
+    // endpoint and the recorded reason are Milestone 8; the transition lives here because
+    // the rule that reads it does.
+    public void Revoke()
+    {
+        Status = VoucherStatus.Revoked;
+    }
+
+    // Accepts a total above the allowance. The budget is soft by design, and refusing to
+    // record an overshoot would lose the evidence of it.
+    public void RecordConsumption(int tokens)
+    {
+        if (tokens < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(tokens),
+                tokens,
+                VoucherErrors.ConsumedTokensMustNotBeNegative
+            );
+        }
+
+        Consumed += tokens;
     }
 
     public static IssuedVoucher Issue(
