@@ -1,9 +1,11 @@
 using System.Net.Http.Headers;
 using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Inference;
+using LlmVoucherGateway.Api.IntegrationTests.Inference;
 using LlmVoucherGateway.Api.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,6 +23,12 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
     public const string ConfiguredAdminKey = "integration-test-admin-key";
 
     private readonly RecordingSink _recordingSink = new();
+
+    /// <summary>
+    /// Stands in for vLLM. Exposed so a test can assert what the gateway forwarded, and
+    /// what it did not.
+    /// </summary>
+    public FakeInferenceClient InferenceClient { get; } = new();
 
     /// <summary>
     /// A database of this factory's own, so tests neither share state nor inherit the
@@ -57,6 +65,11 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
         // configuration under test.
         builder.ConfigureServices(services =>
             services.AddSingleton<ILogEventSink>(_recordingSink));
+
+        // Replaces the typed client registered in Program.cs, so nothing in the suite
+        // depends on a reachable inference server.
+        builder.ConfigureTestServices(services =>
+            services.AddSingleton<IInferenceClient>(InferenceClient));
 
         builder.ConfigureAppConfiguration(configuration =>
             configuration.AddInMemoryCollection(

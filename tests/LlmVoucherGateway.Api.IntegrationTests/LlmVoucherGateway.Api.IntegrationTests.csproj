@@ -19,6 +19,18 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- The Milestone 1 captures are the fake client's script. Linked rather than copied,
+       so there is one source of truth and a re-capture cannot leave the tests asserting
+       against a stale response shape. -->
+  <ItemGroup>
+    <Content Include="..\..\api_documentation\chat-completions\non-streaming-response.json"
+             Link="Captures\non-streaming-response.json"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\api_documentation\chat-completions\streaming-response.md"
+             Link="Captures\streaming-response.md"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\LlmVoucherGateway.Api\LlmVoucherGateway.Api.csproj" />
   </ItemGroup>

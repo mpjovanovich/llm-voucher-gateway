@@ -241,11 +241,16 @@ A writer that produces `{"error":{"message","type","param","code"}}` with a matc
 
 ### 6b. Fake `IInferenceClient`
 
+_COMPLETE_ — see [FakeInferenceClient.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Inference/FakeInferenceClient.cs) and [ChatCompletionsEndpointTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Inference/ChatCompletionsEndpointTests.cs)
+
 A stand-in replaying the Milestone 1 captures, registered by the test factory in place of `VllmInferenceClient`. A class, not a stub server — nothing here points a live harness at a GPU-less box.
 
-- Returns [non-streaming-response.json](../api_documentation/chat-completions/non-streaming-response.json) for a non-streaming request
-- The SSE stream in [streaming-response.md](../api_documentation/chat-completions/streaming-response.md) needs extracting into a fixture the fake can read; the markdown is for humans
-- First test of `/v1/chat/completions` at all. Every later pass-case test depends on this, which is why it comes before enforcement rather than alongside it
+- Returns [non-streaming-response.json](../api_documentation/chat-completions/non-streaming-response.json), or the SSE stream rebuilt from the `data:` lines of [streaming-response.md](../api_documentation/chat-completions/streaming-response.md), chosen by whether the forwarded body sets `"stream": true`
+- **The captures are linked into the test project as content**, not copied into it, so a re-capture cannot leave the tests asserting a stale response shape
+- The fake records the bodies it was asked to forward. That is what lets 6e assert a rejected request never reached the inference server at all, rather than only checking the status a caller saw
+- First tests of `/v1/chat/completions`: the response relays byte for byte, the request body is forwarded unchanged, and a streamed response ends in `data: [DONE]` — the terminator whose absence makes a harness hang rather than fail
+
+**Does not cover:** that streaming stays unbuffered. The fake's body is a `MemoryStream`, so timing proves nothing here; that remains Milestone 3's proof against a real server, and Milestone 9's through the proxy.
 
 **Done when:** an integration test posts to `/v1/chat/completions` and gets the captured response back, with no GPU involved.
 
