@@ -21,6 +21,16 @@ public sealed class Voucher : Entity
         Lifetime = lifetime;
     }
 
+    private Voucher()
+    {
+        // Required by EF Core. It constructs the instance first and then sets the owned
+        // value objects through their properties, because an owned type cannot be bound
+        // to a constructor parameter. The null-forgiving assignments stand in for values
+        // EF supplies immediately afterwards.
+        Key = null!;
+        Lifetime = null!;
+    }
+
     public VoucherKey Key { get; private set; }
     public string? Section { get; set; }
     public int Allowance { get; private set; }
