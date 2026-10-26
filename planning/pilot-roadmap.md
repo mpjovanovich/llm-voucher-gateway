@@ -319,6 +319,8 @@ _WHERE WE LEFT OFF - NEEDS MANUAL VALIDATION ON WINDOWS BOX_
 
 This is a much needed e2e check point to catch anything that integration is not checking. The proof of concept rests on it working at this point.
 
+See: https://aider.chat/#getting-started
+
 **Requires live vLLM**, so this runs on the GPU box and is the only substep that cannot be done here.
 
 - Point Aider at the gateway with a valid voucher and redo the Milestone 2 task. The voucher goes in `OPENAI_API_KEY`, which is what the harness sends as the bearer token — mint one with `POST /admin/vouchers` first, since the Milestone 2 and 3 runs predate enforcement and used no credential at all
