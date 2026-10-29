@@ -329,7 +329,15 @@ See: https://aider.chat/#getting-started
 
 **Done when (whole milestone):** a valid voucher works, an invalid one fails cleanly _in the harness_, not just in curl.
 
-UPDATE: ended up using a simple [Streamlit Web UI](../src/LlmVoucherGateway.Web/app.py), and it worked. This will need to run on the same server as the vllm so that we don't have to mess with CORS. We can add it to the docker-compose file when we're ready.
+UPDATE: ended up using a simple [Streamlit Web UI](../src/LlmVoucherGateway.Web/app.py), and it worked against the vllm url directly. 
+
+Next step is to point it at the gateway endpoint and check basic functionality.
+
+This will need to run on the same server as the vllm so that we don't have to mess with CORS. We can add it to the docker-compose file when we're ready.
+
+After getting Streamlit to work we can also do preliminary test against aider.
+
+TODO: The streamlit frontend was vibe coded and needs eyes on. We should also add e2e tests that go through this layer. Add this as an action item towards the end. 
 
 ---
 
