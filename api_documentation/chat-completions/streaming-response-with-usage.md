@@ -22,11 +22,24 @@ before `[DONE]`. That extra chunk has an **empty `choices` array** and carries t
 `include_usage` is *not* set (compare
 [streaming-response.md](streaming-response.md)).
 
-Implication for Milestone 7 (consumption recording): a streaming consumer must not
-stop reading at `finish_reason: "stop"` — it has to keep reading until `[DONE]` to
-see the usage chunk. And `stream_options.include_usage` can be set server-side by
-vLLM's request handling in this version, so it's an option the API layer can inject
-without client cooperation if a client omits it.
+Implication for Milestone 7 (consumption recording): in *this* shape a streaming
+consumer must not stop reading at `finish_reason: "stop"` — it has to keep reading
+until `[DONE]` to see the usage chunk.
+
+**Superseded in practice.** The note that once stood here — that the API layer could
+inject `include_usage` on the client's behalf — conflated two different mechanisms.
+Injection would mean the gateway parsing and rewriting each request body, giving up
+the opaque passthrough. The actual answer is a server flag,
+`--enable-force-include-usage`, now set in
+[docker-compose.llm.yml](../../docker-compose.llm.yml): it forces usage on regardless
+of the client *and* adds a running count to every chunk, which removes the
+read-to-`[DONE]` requirement above. See
+[streaming-response-forced-usage.md](streaming-response-forced-usage.md).
+
+This capture stays as the record of client-requested behavior, which is what a
+non-forced server does.
+
+See the example output for actual responses.
 
 ## Raw SSE stream
 

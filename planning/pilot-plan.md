@@ -16,11 +16,35 @@ Budget model may be: on
 - Input tokens only; easy implementation, no need to intercept output
 - Input + output tokens
 
+**The cost argument for the first two has mostly evaporated.** They were attractive
+because capturing output looked expensive. With `--enable-force-include-usage` the
+server hands over `total_tokens` (already input + output) without the gateway parsing
+a single chunk, so the most accurate model is now also nearly the cheapest. The
+weaker models survive only as the fallback if streaming metering proves fragile in
+practice.
+
 For output capture:
 
-.NET API calls vLLM with stream: true, relays chunks to the client as they arrive (read/write loop, no buffering).
-Count completion tokens as chunks pass through (via usage field if requested, or one token per content chunk as fallback).
-Write the usage record when the loop ends, regardless of whether the client disconnected first.
+_Settled 2026-10-28 — see [streaming-response-forced-usage.md](../api_documentation/chat-completions/streaming-response-forced-usage.md)._
+
+The gateway relays the client's request upstream untouched (no `stream_options`
+injection, so the opaque passthrough survives) and relays chunks back as they arrive.
+vLLM runs with `--enable-force-include-usage`, which puts a `usage` object carrying a
+**running count** on every chunk.
+
+So the loop does not count anything and does not parse chunks on the fly:
+
+1. Relay bytes through unchanged, splitting only on `\n` to find line boundaries.
+2. Keep a copy of the most recent `data:` line — overwrite a variable, no parsing.
+3. When the loop ends, parse that one saved line and read `total_tokens` off it.
+
+`total_tokens` is already `prompt_tokens + completion_tokens` — read it, don't sum
+them, or the prompt gets double-billed.
+
+Write the usage record when the loop ends, regardless of whether the client
+disconnected first. Stay on bytes rather than reassembling lines into strings:
+re-serializing risks mangling SSE framing, including the keep-alive comment lines
+mentioned below.
 
 Considerations:
 
@@ -29,7 +53,16 @@ Disable response compression and any buffering middleware in ASP.NET Core for th
 - TODO: what are the downsides?
   Whatever proxy sits in front of the .NET API (Caddy probably) needs buffering disabled and a read timeout longer than generation time — this is the part that silently breaks streaming if missed.
   Test through the actual reverse proxy before considering it done; local dotnet run won't surface the buffering issue.
-  Worst-case failure: a disconnect mid-stream undercounts that request's output tokens. Not a big deal.
+
+  **vLLM 0.29 can help from its end:** `--sse-keep-alive-interval <seconds>` emits an
+  SSE comment line while a stream is idle — queued, during prefill, or between tokens
+  — specifically to stop proxies and tunnels with read timeouts from closing the
+  connection. Defaults to 0 (disabled). Fixing it at the source beats tuning proxy
+  timeouts, so consider setting this when Caddy lands.
+
+  Worst-case failure: a disconnect mid-stream used to undercount that request's output
+  tokens. With a running count on every chunk, the last chunk that got out still
+  carries a valid total, so the undercount is now bounded by whatever was in flight.
 
 ## Goal
 
@@ -96,9 +129,25 @@ Note: admins need the ADMIN_KEY to create vouchers, which is implemented as an e
 
 Soft budgets — check on entry, record after. A student can overshoot on their final request; that's accepted.
 
-Token counts come from the `usage` object in vLLM's response.
+Token counts come from the `usage` object in vLLM's response — specifically
+`total_tokens`, which already includes both input and output.
 
-**Trap:** in streaming mode for vLLM `usage` is absent unless the request includes `stream_options: {"include_usage": true}` — and harnesses won't set it. Either inject it server-side, check whether vLLM can force it, or meter by request count instead.
+**Trap (resolved 2026-10-28):** in streaming mode vLLM omits `usage` unless the
+request sets `stream_options: {"include_usage": true}`, and harnesses won't set it.
+Of the three outs listed here — inject it server-side, check whether vLLM can force
+it, meter by request count — the second one landed. vLLM 0.29 has
+`--enable-force-include-usage`, now set in
+[docker-compose.llm.yml](../docker-compose.llm.yml); it forces usage on regardless of
+the client, and additionally reports a running count on every chunk. Injection was
+the worse option anyway: it would have meant parsing and rewriting every request
+body, costing the opaque passthrough.
+
+**This flag is not optional in production.** It lives in a compose file that is
+explicitly dev-only, so wherever the pilot's vLLM gets launched needs it too —
+without it, metering silently records nothing on every streaming request.
+
+**Untested:** the flag sends `usage` to clients that never asked for it. Should be
+ignorable, but verify against OpenCode/Aider during the harness run.
 
 ## Hardware
 
@@ -111,4 +160,5 @@ Harness runs on Windows, Mac, Linux. **Chromebooks are not supported**.
 
 ## Deferred
 
-streaming-aware proxying (Caddy supports better than nginx?)
+streaming-aware proxying (Caddy supports better than nginx?) — pair with vLLM's
+`--sse-keep-alive-interval`, noted under the TODO above.

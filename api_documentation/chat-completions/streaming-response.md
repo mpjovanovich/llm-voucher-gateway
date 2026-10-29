@@ -1,5 +1,16 @@
 # Streaming response — without `stream_options.include_usage`
 
+> **Stale as a description of the current server.** This was captured before
+> `--enable-force-include-usage` was added to
+> [docker-compose.llm.yml](../../docker-compose.llm.yml). With that flag set, this
+> request shape now returns `usage` on every chunk — see
+> [streaming-response-forced-usage.md](streaming-response-forced-usage.md) for what
+> the gateway actually sees.
+>
+> Kept for two reasons: it records vLLM's unforced behavior, and the integration
+> tests rebuild their fake SSE stream from the `data:` lines below
+> (`CapturedResponses.StreamingBody()`). Reproducing it requires removing the flag.
+
 ## Request
 
 ```
@@ -15,9 +26,21 @@ curl -N http://localhost:8000/v1/chat/completions \
 ## Key finding
 
 `finish_reason` and `system_fingerprint` land **on the same, final content chunk** —
-there is no separate terminal event. `usage` is **absent entirely** on this request
-shape; it only appears when `stream_options.include_usage` is set (see
-[streaming-response-with-usage.md](streaming-response-with-usage.md)).
+there is no separate terminal event. `usage` is **absent entirely**, which is the
+problem the metering design had to solve: a client that doesn't opt in gets no token
+counts at all.
+
+Two ways to get them, both captured separately:
+
+- the client sets `stream_options.include_usage` —
+  [streaming-response-with-usage.md](streaming-response-with-usage.md)
+- the server sets `--enable-force-include-usage`, which is what the gateway relies on
+  since harnesses won't opt in —
+  [streaming-response-forced-usage.md](streaming-response-forced-usage.md)
+
+Either way a terminal `choices: []` chunk appears and `system_fingerprint` moves onto
+it, so the "no separate terminal event" finding above holds only with both switches
+off.
 
 ## Raw SSE stream
 

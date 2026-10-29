@@ -333,12 +333,13 @@ See: https://aider.chat/#getting-started
 
 ## 7. Consumption recording
 
-- Read `usage` from the response, decrement the voucher
-- Streaming: requires `stream_options: {"include_usage": true}`. Whether vLLM can force this server-side is answerable from the Milestone 1 capture; otherwise inject at the API
+- Read `usage.total_tokens` from the response, decrement the voucher. `total_tokens` is already input + output; summing it with `prompt_tokens` double-bills the prompt
+- Streaming: **answered — vLLM can force it server-side.** `--enable-force-include-usage` is set in `docker-compose.llm.yml`, so no injection at the API and no `stream_options` dependency on the client. It also puts a running count on every chunk, so the gateway can relay bytes untouched and parse only the last `data:` line it saw, once, after the stream ends. See [streaming-response-forced-usage.md](../api_documentation/chat-completions/streaming-response-forced-usage.md)
+- The flag must be set wherever the pilot's vLLM runs, not just in the dev compose file; without it streaming requests meter as nothing
 - Soft limits: check on entry, record after, overshoot accepted
 - Recording failure must not fail the request
 
-**Depends on:** the streaming-with-usage capture from Milestone 1.
+**Depends on:** the forced-usage capture (`streaming-response-forced-usage.md`).
 
 **Done when:** consumption tracks across a real multi-turn agentic session.
 

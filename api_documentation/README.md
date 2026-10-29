@@ -8,8 +8,12 @@ tested without a GPU. Captured generously per the roadmap's instruction — anyt
 - **vLLM image (pinned):** `vllm/vllm-openai:v0.29.0`
 - **Model served:** `Qwen/Qwen2.5-0.5B-Instruct`
 - **`max_model_len`:** 32768
-- **Launch command:** `--model Qwen/Qwen2.5-0.5B-Instruct --gpu-memory-utilization 0.85` (see [docker-compose.llm.yml](../docker-compose.llm.yml))
-- **Capture date:** 2026-09-11
+- **Launch command (at capture time):** `--model Qwen/Qwen2.5-0.5B-Instruct --gpu-memory-utilization 0.85`
+- **Launch command (current):** adds `--enable-force-include-usage` (see [docker-compose.llm.yml](../docker-compose.llm.yml))
+- **Capture date:** 2026-09-11, except the forced-usage capture below (2026-10-28)
+
+The flag changes the streaming response shape, so the two streaming captures from
+2026-09-11 no longer describe what this server returns. Each says so at the top.
 
 ## Contents
 
@@ -17,8 +21,9 @@ tested without a GPU. Captured generously per the roadmap's instruction — anyt
 |---|---|---|
 | OpenAPI schema | [openapi.json](openapi.json) | Raw `/openapi.json` from the running instance. Re-pull and diff in Milestone 10 if the vLLM version changes. |
 | Non-streaming chat completion | [chat-completions/non-streaming-response.json](chat-completions/non-streaming-response.json) | Baseline response shape, including `usage`. |
-| Streaming chat completion | [chat-completions/streaming-response.md](chat-completions/streaming-response.md) | Raw SSE chunks. `finish_reason` lands on the final content chunk; no `usage` without `include_usage`. |
-| Streaming with usage | [chat-completions/streaming-response-with-usage.md](chat-completions/streaming-response-with-usage.md) | Feeds Milestone 7. `usage` arrives in its own trailing chunk with empty `choices`, after the `finish_reason: "stop"` chunk. |
+| Streaming chat completion | [chat-completions/streaming-response.md](chat-completions/streaming-response.md) | Flag off. Raw SSE chunks. `finish_reason` lands on the final content chunk; no `usage` at all. Also the integration tests' SSE fixture. |
+| Streaming with usage | [chat-completions/streaming-response-with-usage.md](chat-completions/streaming-response-with-usage.md) | Flag off, client opts in. `usage` arrives in its own trailing chunk with empty `choices`, after the `finish_reason: "stop"` chunk. |
+| **Streaming, server-forced usage** | [chat-completions/streaming-response-forced-usage.md](chat-completions/streaming-response-forced-usage.md) | **What the gateway actually sees.** Feeds Milestone 7. `usage` on every chunk as a running count, with no client cooperation. |
 | Error: unknown model | [errors/unknown-model.json](errors/unknown-model.json) | HTTP 404, `type: "NotFoundError"`. |
 | Error: context-length overflow | [errors/context-length-overflow.json](errors/context-length-overflow.json) | HTTP 400, `type: "BadRequestError"`. Forced via an out-of-range `max_tokens`. |
 | Error: malformed request | [errors/malformed-request.json](errors/malformed-request.json) | HTTP 400, `type: "Bad Request"`. Two variants: invalid JSON syntax, and schema-validation failure. |
@@ -100,8 +105,9 @@ this capture set was built from.
 - **Milestone 6** (voucher validation): error payload shapes, so rejections stay
   OpenAI-shaped. A fake `IInferenceClient` replays these responses so the pass
   case can run without a GPU.
-- **Milestone 7** (consumption recording): the usage-chunk placement/timing in
-  `streaming-response-with-usage.md`.
+- **Milestone 7** (consumption recording): `streaming-response-forced-usage.md` —
+  the running-count-per-chunk shape, which is what the metering loop reads.
+  `streaming-response-with-usage.md` keeps the trailing-chunk-only shape for contrast.
 - **Milestone 10:** re-pull `openapi.json` and diff against this copy if the vLLM
   version changes before load testing.
 
