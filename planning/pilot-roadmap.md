@@ -329,6 +329,8 @@ See: https://aider.chat/#getting-started
 
 **Done when (whole milestone):** a valid voucher works, an invalid one fails cleanly _in the harness_, not just in curl.
 
+UPDATE: ended up using a simple [Streamlit Web UI](../src/LlmVoucherGateway.Web/app.py), and it worked. This will need to run on the same server as the vllm so that we don't have to mess with CORS. We can add it to the docker-compose file when we're ready.
+
 ---
 
 ## 7. Consumption recording
