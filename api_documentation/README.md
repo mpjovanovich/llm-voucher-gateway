@@ -64,7 +64,7 @@ numbers.**
   The response is a JSON array; `key` from its single object is the bearer token, and
   that response is the only place it exists. Allow enough allowance for the run —
   consumption is not yet recorded (Milestone 7), but a voucher that starts exhausted is
-  refused with `402`. Against vLLM directly on `:8000` the header is ignored, since vLLM
+  refused with `403`. Against vLLM directly on `:8000` the header is ignored, since vLLM
   has no concept of vouchers.
 
 **"Count slowly from 1 to 50."** — 207 chunks, `max_tokens: 512`
