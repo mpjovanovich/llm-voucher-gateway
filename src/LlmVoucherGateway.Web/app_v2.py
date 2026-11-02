@@ -5,7 +5,7 @@ import streamlit as st
 from openai import OpenAI, APIConnectionError, APIStatusError
 
 # ---- Config (override with env vars) -----------------------------------------
-BASE_URL = os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+BASE_URL = os.getenv("GATEWAY_BASE_URL", "http://localhost:5131/v1")  # make run-api
 MAX_FILE_CHARS = int(os.getenv("MAX_FILE_CHARS", 12_000))        # per file, ~3k tokens
 MAX_HISTORY_CHARS = int(os.getenv("MAX_HISTORY_CHARS", 24_000))  # total sent per request
 TEXT_TYPES = ["txt", "md", "py", "csv", "json", "html", "xml", "yaml", "yml", "log", "sql"]
