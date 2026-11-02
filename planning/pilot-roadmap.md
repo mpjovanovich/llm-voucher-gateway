@@ -337,6 +337,14 @@ This will need to run on the same server as the vllm so that we don't have to me
 
 After getting Streamlit to work we can also do preliminary test against aider.
 
+Substeps:
+
+- **6g.1** Web client points at the gateway: base URL from config instead of hardcoded `localhost:8000`
+- **6g.2** `GET /v1/models` pass-through: the web client lists models before it enables chat, and the gateway does not serve that path yet
+- **6g.3** Streamlit against the gateway with a valid voucher (live vLLM)
+- **6g.4** Streamlit against the gateway with rejected vouchers: unknown, expired, revoked, exhausted (live vLLM)
+- **6g.5** Preliminary Aider run (live vLLM)
+
 TODO: The streamlit frontend was vibe coded and needs eyes on. We should also add e2e tests that go through this layer. Add this as an action item towards the end. 
 
 ---
