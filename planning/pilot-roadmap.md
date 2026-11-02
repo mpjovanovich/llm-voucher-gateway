@@ -325,7 +325,7 @@ See: https://aider.chat/#getting-started
 
 - Point Aider at the gateway with a valid voucher and redo the Milestone 2 task. The voucher goes in `OPENAI_API_KEY`, which is what the harness sends as the bearer token — mint one with `POST /admin/vouchers` first, since the Milestone 2 and 3 runs predate enforcement and used no credential at all
 - Repeat with a revoked voucher and confirm the failure is legible in the harness rather than a crash or silence
-- Watch for the `402` case specifically: a `401` is a shape harnesses expect, while `402` is unusual enough that a client may render it poorly. If it does, that is an argument for revisiting the 6a status map, not for hiding the distinction
+- Watch for the `403` case specifically: a `401` is a shape harnesses expect, while `403 insufficient_quota` is less common and a client may render it poorly. If it does, that is an argument for revisiting the 6a status map, not for hiding the distinction
 
 **Done when (whole milestone):** a valid voucher works, an invalid one fails cleanly _in the harness_, not just in curl.
 
@@ -333,7 +333,7 @@ UPDATE: ended up using a simple [Streamlit Web UI](../src/LlmVoucherGateway.Web/
 
 Next step is to point it at the gateway endpoint and check basic functionality.
 
-This will need to run on the same server as the vllm so that we don't have to mess with CORS. We can add it to the docker-compose file when we're ready.
+CORS is not a factor: Streamlit calls the gateway from its Python server process, not from the browser. It only needs network access to the gateway. We can add it to the docker-compose file when we're ready.
 
 After getting Streamlit to work we can also do preliminary test against aider.
 
