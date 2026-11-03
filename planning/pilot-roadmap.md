@@ -354,6 +354,8 @@ Substeps:
   - (TODO) exhausted
 - **6g.5** Preliminary Aider run (live vLLM)
 
+TODO: Do an eyes on check of the voucher in the database now at src/LlmVoucherGateway.Api/.data/vouchers.db
+
 TODO: The streamlit frontend was vibe coded and needs eyes on; codebase probably needs some cleaning.
 
 ---
