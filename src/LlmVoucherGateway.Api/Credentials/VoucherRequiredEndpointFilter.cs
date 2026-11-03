@@ -14,7 +14,7 @@ internal sealed class VoucherRequiredEndpointFilter(
 ) : IEndpointFilter
 {
     private const string VoucherRequiredMessage =
-        "A voucher is required. Set it as a bearer token in the Authorization header.";
+        "A voucher is required.";
 
     private const string RevokedMessage = "This voucher has been revoked.";
 
