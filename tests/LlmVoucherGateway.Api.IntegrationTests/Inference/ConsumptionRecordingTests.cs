@@ -62,14 +62,55 @@ public class ConsumptionRecordingTests
         Assert.Equal(60 + 45 + 60, await ReadConsumedAsync(factory));
     }
 
-    private static async Task PostAsync(HttpClient client, object request)
+    [Fact]
+    public async Task ChatCompletions_WhenUpstreamRejectsTheRequest_RelaysTheErrorAndRecordsNothing()
+    {
+        await using GatewayApplicationFactory factory = new();
+        using HttpClient client = await factory.CreateVoucherClientAsync();
+
+        factory.InferenceClient.ChatCompletionResponse = new ScriptedResponse(
+            HttpStatusCode.NotFound,
+            "application/json",
+            CapturedResponses.UnknownModelErrorBody()
+        );
+
+        await PostAsync(client, NonStreamingRequest, HttpStatusCode.NotFound);
+
+        Assert.Equal(0, await ReadConsumedAsync(factory));
+    }
+
+    [Fact]
+    public async Task ChatCompletions_WhenStreamCarriesNoUsage_SucceedsAndRecordsNothing()
+    {
+        await using GatewayApplicationFactory factory = new();
+        using HttpClient client = await factory.CreateVoucherClientAsync();
+
+        // A server started without --enable-force-include-usage. The request still has to
+        // succeed; it simply goes unmetered.
+        factory.InferenceClient.ChatCompletionResponse = new ScriptedResponse(
+            HttpStatusCode.OK,
+            "text/event-stream",
+            CapturedResponses.UnforcedStreamingBody()
+        );
+
+        string body = await PostAsync(client, StreamingRequest);
+
+        Assert.Equal(CapturedResponses.UnforcedStreamingBody(), body);
+        Assert.Equal(0, await ReadConsumedAsync(factory));
+    }
+
+    private static async Task<string> PostAsync(
+        HttpClient client,
+        object request,
+        HttpStatusCode expectedStatus = HttpStatusCode.OK
+    )
     {
         using HttpResponseMessage response = await client.PostAsJsonAsync(ChatCompletionsPath, request);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(expectedStatus, response.StatusCode);
 
         // Read to the end, so the request has finished, and been recorded, before returning.
-        await response.Content.ReadAsStringAsync();
+        return await response.Content.ReadAsStringAsync();
     }
 
     private static async Task<int> ReadConsumedAsync(GatewayApplicationFactory factory)

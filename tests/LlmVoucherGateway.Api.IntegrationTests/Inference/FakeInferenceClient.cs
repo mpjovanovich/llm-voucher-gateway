@@ -31,6 +31,12 @@ internal sealed class FakeInferenceClient : IInferenceClient
     /// </summary>
     public Stream? StreamingBody { get; set; }
 
+    /// <summary>
+    /// Replaces the captured response entirely, for an upstream that answers differently
+    /// from the dev server — an error, or a stream without usage.
+    /// </summary>
+    public ScriptedResponse? ChatCompletionResponse { get; set; }
+
     public async Task<InferenceResponse> CreateChatCompletionAsync(
         Stream requestBody,
         CancellationToken cancellationToken
@@ -40,6 +46,20 @@ internal sealed class FakeInferenceClient : IInferenceClient
         string request = await reader.ReadToEndAsync(cancellationToken);
 
         ForwardedRequests.Add(request);
+
+        if (ChatCompletionResponse is ScriptedResponse scripted)
+        {
+            // InferenceResponse owns the message and disposes it, which CA2000 cannot see
+            // across the constructor.
+#pragma warning disable CA2000
+            return new InferenceResponse(new HttpResponseMessage())
+#pragma warning restore CA2000
+            {
+                StatusCode = scripted.StatusCode,
+                ContentType = scripted.ContentType,
+                Body = new MemoryStream(Encoding.UTF8.GetBytes(scripted.Body)),
+            };
+        }
 
         bool streaming = IsStreamingRequest(request);
 
@@ -93,3 +113,5 @@ internal sealed class FakeInferenceClient : IInferenceClient
             && stream.ValueKind == JsonValueKind.True;
     }
 }
+
+internal sealed record ScriptedResponse(HttpStatusCode StatusCode, string ContentType, string Body);

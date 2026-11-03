@@ -28,11 +28,19 @@ internal static class CapturedResponses
     /// The forced-usage capture, because the gateway's vLLM always runs with
     /// <c>--enable-force-include-usage</c>: every chunk carries a running token count.
     /// </remarks>
-    public static string StreamingBody()
+    public static string StreamingBody() => ReadSseCapture("streaming-response-forced-usage.md");
+
+    /// <summary>
+    /// What a vLLM started without <c>--enable-force-include-usage</c> streams: no
+    /// <c>usage</c> on any chunk.
+    /// </summary>
+    public static string UnforcedStreamingBody() => ReadSseCapture("streaming-response.md");
+
+    private static string ReadSseCapture(string fileName)
     {
         StringBuilder body = new();
 
-        foreach (string line in File.ReadLines(Path.Combine(CaptureDirectory, "streaming-response-forced-usage.md")))
+        foreach (string line in File.ReadLines(Path.Combine(CaptureDirectory, fileName)))
         {
             if (line.StartsWith("data:", StringComparison.Ordinal))
             {

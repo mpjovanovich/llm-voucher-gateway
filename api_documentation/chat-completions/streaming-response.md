@@ -8,8 +8,9 @@
 > the gateway actually sees.
 >
 > Kept as a record of vLLM's unforced behavior. The integration tests replay the
-> forced-usage capture instead, since that is the shape the gateway is built against.
-> Reproducing this one requires removing the flag.
+> forced-usage capture instead, since that is the shape the gateway is built against;
+> this one only backs the test for a server started without the flag. Reproducing it
+> requires removing the flag.
 
 ## Request
 
