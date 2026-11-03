@@ -7,9 +7,9 @@
 > [streaming-response-forced-usage.md](streaming-response-forced-usage.md) for what
 > the gateway actually sees.
 >
-> Kept for two reasons: it records vLLM's unforced behavior, and the integration
-> tests rebuild their fake SSE stream from the `data:` lines below
-> (`CapturedResponses.StreamingBody()`). Reproducing it requires removing the flag.
+> Kept as a record of vLLM's unforced behavior. The integration tests replay the
+> forced-usage capture instead, since that is the shape the gateway is built against.
+> Reproducing this one requires removing the flag.
 
 ## Request
 

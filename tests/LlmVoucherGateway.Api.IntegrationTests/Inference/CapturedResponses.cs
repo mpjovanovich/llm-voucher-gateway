@@ -21,11 +21,15 @@ internal static class CapturedResponses
     /// written for a human to read, so the stream has to be lifted back out of it —
     /// including the terminating <c>[DONE]</c>, which a harness waits for.
     /// </summary>
+    /// <remarks>
+    /// The forced-usage capture, because the gateway's vLLM always runs with
+    /// <c>--enable-force-include-usage</c>: every chunk carries a running token count.
+    /// </remarks>
     public static string StreamingBody()
     {
         StringBuilder body = new();
 
-        foreach (string line in File.ReadLines(Path.Combine(CaptureDirectory, "streaming-response.md")))
+        foreach (string line in File.ReadLines(Path.Combine(CaptureDirectory, "streaming-response-forced-usage.md")))
         {
             if (line.StartsWith("data:", StringComparison.Ordinal))
             {
