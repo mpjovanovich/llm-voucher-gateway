@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using LlmVoucherGateway.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -60,6 +61,26 @@ public class ConsumptionRecordingTests
         await PostAsync(client, StreamingRequest);
 
         Assert.Equal(60 + 45 + 60, await ReadConsumedAsync(factory));
+    }
+
+    [Fact]
+    public async Task ChatCompletions_WhenARequestOvershootsTheAllowance_RecordsAllOfItAndRefusesTheNext()
+    {
+        await using GatewayApplicationFactory factory = new();
+
+        string voucherKey = await factory.IssueVoucherKeyAsync(allowance: 50);
+        using HttpClient client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", voucherKey);
+
+        // Admitted with 50 left, so it runs to completion and its 60 tokens are kept as
+        // evidence of the overshoot rather than capped at the allowance.
+        await PostAsync(client, StreamingRequest);
+
+        Assert.Equal(60, await ReadConsumedAsync(factory));
+
+        await PostAsync(client, StreamingRequest, HttpStatusCode.Forbidden);
+
+        Assert.Single(factory.InferenceClient.ForwardedRequests);
     }
 
     [Fact]
