@@ -99,6 +99,25 @@ public class ConsumptionRecordingTests
         Assert.Equal(0, await ReadConsumedAsync(factory));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ChatCompletions_WhenRecordingFails_StillDeliversTheWholeResponse(bool stream)
+    {
+        await using GatewayApplicationFactory factory = new();
+        using HttpClient client = await factory.CreateVoucherClientAsync();
+
+        factory.DatabaseFaults.FailSaves = true;
+
+        string body = await PostAsync(client, stream ? StreamingRequest : NonStreamingRequest);
+
+        Assert.Equal(
+            stream ? CapturedResponses.StreamingBody() : CapturedResponses.NonStreamingBody(),
+            body
+        );
+        Assert.Equal(0, await ReadConsumedAsync(factory));
+    }
+
     private static async Task<string> PostAsync(
         HttpClient client,
         object request,

@@ -1,6 +1,6 @@
+using LlmVoucherGateway.Api.Consumption;
 using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Inference;
-using LlmVoucherGateway.Api.Persistence;
 using LlmVoucherGateway.Domain.Vouchers;
 
 namespace LlmVoucherGateway.Api.Endpoints;
@@ -20,7 +20,7 @@ internal static class ChatCompletionsEndpoint
     private static async Task HandleAsync(
         HttpContext httpContext,
         IInferenceClient inferenceClient,
-        VoucherDbContext dbContext
+        ConsumptionRecorder consumptionRecorder
     )
     {
         // Tie the upstream request to the caller's connection: a client that walks away
@@ -36,30 +36,10 @@ internal static class ChatCompletionsEndpoint
 
         await upstreamResponse.RelayAsync(httpContext, usageObserver, cancellationToken);
 
-        await RecordConsumptionAsync(httpContext, dbContext, usageObserver, cancellationToken);
-    }
-
-    // Recorded after the response, against the voucher the filter already checked: the
-    // budget is soft, so a request admitted under it is allowed to finish over it.
-    private static async Task RecordConsumptionAsync(
-        HttpContext httpContext,
-        VoucherDbContext dbContext,
-        IUsageObserver usageObserver,
-        CancellationToken cancellationToken
-    )
-    {
-        if (httpContext.Features.Get<CallerCredential>()?.Voucher is not Voucher voucher)
+        // The filter only admits voucher credentials, so this always matches.
+        if (httpContext.Features.Get<CallerCredential>()?.Voucher is Voucher voucher)
         {
-            return;
+            await consumptionRecorder.RecordAsync(voucher, usageObserver, cancellationToken);
         }
-
-        if (usageObserver.ReadTotalTokens() is not int totalTokens)
-        {
-            return;
-        }
-
-        voucher.RecordConsumption(totalTokens);
-
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

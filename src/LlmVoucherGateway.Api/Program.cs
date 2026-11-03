@@ -1,3 +1,4 @@
+using LlmVoucherGateway.Api.Consumption;
 using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Endpoints;
 using LlmVoucherGateway.Api.ExceptionHandlers;
@@ -71,6 +72,8 @@ builder.Services.AddDbContext<VoucherDbContext>((serviceProvider, dbContextOptio
 });
 
 builder.Services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
+
+builder.Services.AddScoped<ConsumptionRecorder>();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ExceptionHandler>();
