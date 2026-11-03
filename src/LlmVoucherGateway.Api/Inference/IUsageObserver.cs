@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+
 namespace LlmVoucherGateway.Api.Inference;
 
 /// <summary>
@@ -12,4 +14,14 @@ internal interface IUsageObserver
     /// The count from what has been observed so far, or <c>null</c> when there was none.
     /// </summary>
     int? ReadTotalTokens();
+
+    /// <summary>
+    /// The observer for a response's shape: an event stream holds its count in the last
+    /// chunk, anything else is read as a single JSON document.
+    /// </summary>
+    static IUsageObserver ForContentType(string? contentType) =>
+        MediaTypeHeaderValue.TryParse(contentType, out MediaTypeHeaderValue? mediaType)
+        && string.Equals(mediaType.MediaType, "text/event-stream", StringComparison.OrdinalIgnoreCase)
+            ? new StreamedUsageObserver()
+            : new BufferedUsageObserver();
 }
