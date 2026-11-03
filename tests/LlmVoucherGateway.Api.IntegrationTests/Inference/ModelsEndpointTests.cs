@@ -3,9 +3,7 @@ using System.Net;
 namespace LlmVoucherGateway.Api.IntegrationTests.Inference;
 
 /// <summary>
-/// Tests of the model list relay. Added in 6g.2 because a client that lets the user choose
-/// a model asks for this path before it will send a chat request, and the gateway did not
-/// serve it.
+/// Tests of the model list relay.
 /// </summary>
 public class ModelsEndpointTests
 {
