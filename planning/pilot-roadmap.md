@@ -346,11 +346,15 @@ Substeps:
   - **The relay itself moved into `InferenceResponseRelay`**, shared by both endpoints. Milestone 3's unbuffered-streaming discipline — forward only status and Content-Type, disable buffering, copy the stream — is the part that is easy to get subtly wrong, and a second copy of it is a second place for it to rot
   - **The route carries `VoucherRequiredEndpointFilter`, the same as chat completions.** The served model list is not public, and a client that lists models first turns this path into the credential check the user actually sees: a bad voucher is reported in the sidebar before a prompt is typed, rather than leaving a disabled input with no explanation. An exhausted voucher therefore cannot list models either, which is the intended answer
   - **No capture for this path.** Milestone 1 curled `/v1/models` but committed nothing, so the fake replays a stand-in body rather than a capture, labelled as such in [FakeInferenceClient.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Inference/FakeInferenceClient.cs). Writing a guess into `api_documentation/` would dress it up as evidence. The relay parses nothing on this path, so the gateway's behaviour is testable without it — **6g.3 is on the GPU box and should capture the real response while it is there**
-- **6g.3** Streamlit against the gateway with a valid voucher (live vLLM)
-- **6g.4** Streamlit against the gateway with rejected vouchers: unknown, expired, revoked, exhausted (live vLLM)
+- **6g.3** _COMPLETE_ — Streamlit against the gateway with a valid voucher (live vLLM)
+- **6g.4** Streamlit against the gateway with rejected voucher scenarios (live vLLM): 
+  - _COMPLETE_ — unknown, 
+  - (TODO) expired
+  - (TODO) revoked 
+  - (TODO) exhausted
 - **6g.5** Preliminary Aider run (live vLLM)
 
-TODO: The streamlit frontend was vibe coded and needs eyes on. We should also add e2e tests that go through this layer. Add this as an action item towards the end. 
+TODO: The streamlit frontend was vibe coded and needs eyes on; codebase probably needs some cleaning.
 
 ---
 

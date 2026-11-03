@@ -25,6 +25,12 @@ internal sealed class FakeInferenceClient : IInferenceClient
     /// </summary>
     public int ListModelsCalls { get; private set; }
 
+    /// <summary>
+    /// Replaces the streamed response body. Set it when a test needs to control when the
+    /// upstream bytes arrive rather than have them all available at once.
+    /// </summary>
+    public Stream? StreamingBody { get; set; }
+
     public async Task<InferenceResponse> CreateChatCompletionAsync(
         Stream requestBody,
         CancellationToken cancellationToken
@@ -37,9 +43,13 @@ internal sealed class FakeInferenceClient : IInferenceClient
 
         bool streaming = IsStreamingRequest(request);
 
-        string body = streaming
+        string capture = streaming
             ? CapturedResponses.StreamingBody()
             : CapturedResponses.NonStreamingBody();
+
+        Stream body = streaming && StreamingBody is not null
+            ? StreamingBody
+            : new MemoryStream(Encoding.UTF8.GetBytes(capture));
 
         // InferenceResponse owns the message and disposes it, which CA2000 cannot see
         // across the constructor.
@@ -49,7 +59,7 @@ internal sealed class FakeInferenceClient : IInferenceClient
         {
             StatusCode = HttpStatusCode.OK,
             ContentType = streaming ? "text/event-stream" : "application/json",
-            Body = new MemoryStream(Encoding.UTF8.GetBytes(body)),
+            Body = body,
         };
     }
 
