@@ -118,6 +118,42 @@ public class ConsumptionRecordingTests
         Assert.Equal(0, await ReadConsumedAsync(factory));
     }
 
+    [Fact]
+    public async Task ChatCompletions_WhenClientDisconnectsMidStream_RecordsTheLastRunningTotal()
+    {
+        await using GatewayApplicationFactory factory = new();
+        using HttpClient client = await factory.CreateVoucherClientAsync();
+
+        // The second chunk is never released, so the stream is still open upstream when
+        // the client walks away.
+        const string FirstChunk =
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}],\"usage\":{\"prompt_tokens\":35,\"total_tokens\":40}}\n\n";
+        factory.InferenceClient.StreamingBody = new ReleasedChunkStream(FirstChunk, "data: [DONE]\n\n");
+
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
+
+        using (HttpRequestMessage request = new(HttpMethod.Post, ChatCompletionsPath))
+        {
+            request.Content = JsonContent.Create(StreamingRequest);
+
+            using HttpResponseMessage response = await client.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                timeout.Token
+            );
+
+            await using Stream body = await response.Content.ReadAsStreamAsync(timeout.Token);
+            await body.ReadExactlyAsync(new byte[FirstChunk.Length], timeout.Token);
+        }
+
+        // The gateway records once it notices the disconnect, which happens on its own
+        // schedule after the client is gone.
+        while (await ReadConsumedAsync(factory) != 40)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20), timeout.Token);
+        }
+    }
+
     private static async Task<string> PostAsync(
         HttpClient client,
         object request,

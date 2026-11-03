@@ -34,12 +34,21 @@ internal static class ChatCompletionsEndpoint
 
         var usageObserver = IUsageObserver.ForContentType(upstreamResponse.ContentType);
 
-        await upstreamResponse.RelayAsync(httpContext, usageObserver, cancellationToken);
-
-        // The filter only admits voucher credentials, so this always matches.
-        if (httpContext.Features.Get<CallerCredential>()?.Voucher is Voucher voucher)
+        try
         {
-            await consumptionRecorder.RecordAsync(voucher, usageObserver, cancellationToken);
+            await upstreamResponse.RelayAsync(httpContext, usageObserver, cancellationToken);
+        }
+        finally
+        {
+            // Also on a disconnect: the tokens up to the last chunk that got out were
+            // generated all the same. The request's token is already cancelled by then,
+            // so the save runs without it.
+
+            // The filter only admits voucher credentials, so this always matches.
+            if (httpContext.Features.Get<CallerCredential>()?.Voucher is Voucher voucher)
+            {
+                await consumptionRecorder.RecordAsync(voucher, usageObserver, CancellationToken.None);
+            }
         }
     }
 }
