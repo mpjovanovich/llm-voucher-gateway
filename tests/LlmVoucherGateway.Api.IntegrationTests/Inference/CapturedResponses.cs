@@ -16,6 +16,9 @@ internal static class CapturedResponses
     public static string NonStreamingBody() =>
         File.ReadAllText(Path.Combine(CaptureDirectory, "non-streaming-response.json"));
 
+    public static string UnknownModelErrorBody() =>
+        File.ReadAllText(Path.Combine(CaptureDirectory, "errors", "unknown-model.json"));
+
     /// <summary>
     /// The SSE body rebuilt from the capture's <c>data:</c> lines. The captured file is
     /// written for a human to read, so the stream has to be lifted back out of it —
