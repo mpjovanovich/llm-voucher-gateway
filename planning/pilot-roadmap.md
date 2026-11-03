@@ -339,8 +339,13 @@ After getting Streamlit to work we can also do preliminary test against aider.
 
 Substeps:
 
-- **6g.1** Web client points at the gateway: base URL from config instead of hardcoded `localhost:8000`
-- **6g.2** `GET /v1/models` pass-through: the web client lists models before it enables chat, and the gateway does not serve that path yet
+- **6g.1** _COMPLETE_ — Web client points at the gateway: base URL from config instead of hardcoded `localhost:8000`. `GATEWAY_BASE_URL` in [app.py](../src/LlmVoucherGateway.Web/app.py), defaulting to the `make run-api` address
+- **6g.2** _COMPLETE_ — `GET /v1/models` pass-through: see [ModelsEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/ModelsEndpoint.cs) and [ModelsEndpointTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Inference/ModelsEndpointTests.cs)
+
+  - `IInferenceClient` grows `ListModelsAsync`, with no request body to relay — the path alone is the request. The response is passed back untouched, as on the chat path
+  - **The relay itself moved into `InferenceResponseRelay`**, shared by both endpoints. Milestone 3's unbuffered-streaming discipline — forward only status and Content-Type, disable buffering, copy the stream — is the part that is easy to get subtly wrong, and a second copy of it is a second place for it to rot
+  - **The route carries `VoucherRequiredEndpointFilter`, the same as chat completions.** The served model list is not public, and a client that lists models first turns this path into the credential check the user actually sees: a bad voucher is reported in the sidebar before a prompt is typed, rather than leaving a disabled input with no explanation. An exhausted voucher therefore cannot list models either, which is the intended answer
+  - **No capture for this path.** Milestone 1 curled `/v1/models` but committed nothing, so the fake replays a stand-in body rather than a capture, labelled as such in [FakeInferenceClient.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Inference/FakeInferenceClient.cs). Writing a guess into `api_documentation/` would dress it up as evidence. The relay parses nothing on this path, so the gateway's behaviour is testable without it — **6g.3 is on the GPU box and should capture the real response while it is there**
 - **6g.3** Streamlit against the gateway with a valid voucher (live vLLM)
 - **6g.4** Streamlit against the gateway with rejected vouchers: unknown, expired, revoked, exhausted (live vLLM)
 - **6g.5** Preliminary Aider run (live vLLM)

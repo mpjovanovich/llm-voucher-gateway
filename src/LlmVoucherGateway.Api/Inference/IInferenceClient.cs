@@ -19,4 +19,12 @@ internal interface IInferenceClient
         Stream requestBody,
         CancellationToken cancellationToken
     );
+
+    /// <summary>
+    /// Fetches the upstream model list.
+    /// </summary>
+    /// <param name="cancellationToken">
+    /// Tears down the upstream request when the caller disconnects.
+    /// </param>
+    Task<InferenceResponse> ListModelsAsync(CancellationToken cancellationToken);
 }

@@ -34,6 +34,10 @@ Authorization: Bearer {{adminKey}}
   "expiresAt": "2027-06-30T23:59:59Z"
 }
 
+### List models (what a chat client asks for before it will send a prompt)
+GET {{baseUrl}}/v1/models
+Authorization: Bearer {{voucherKey}}
+
 ### Non-streaming chat completion
 POST {{baseUrl}}/v1/chat/completions
 Content-Type: application/json

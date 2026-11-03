@@ -5,18 +5,25 @@ using LlmVoucherGateway.Api.Inference;
 
 namespace LlmVoucherGateway.Api.IntegrationTests.Inference;
 
-/// <summary>
-/// Replays the Milestone 1 captures in place of a live vLLM server. A class rather than a
-/// stub server: the point is that the suite needs no GPU, not that it needs a second
-/// process.
-/// </summary>
 internal sealed class FakeInferenceClient : IInferenceClient
 {
+    public const string ModelListBody =
+        """
+        {"object":"list","data":[{"id":"Qwen/Qwen2.5-0.5B-Instruct","object":"model","created":1757692800,"owned_by":"vllm"}]}
+        """;
+
     /// <summary>
     /// Bodies of the requests it was asked to forward, so a test can assert that a
     /// rejected request never reached the inference server at all.
     /// </summary>
     public List<string> ForwardedRequests { get; } = [];
+
+    /// <summary>
+    /// How many times the model list was asked for upstream, so a rejection test can ask
+    /// the same question for this path that <see cref="ForwardedRequests"/> answers for
+    /// chat completions.
+    /// </summary>
+    public int ListModelsCalls { get; private set; }
 
     public async Task<InferenceResponse> CreateChatCompletionAsync(
         Stream requestBody,
@@ -44,6 +51,24 @@ internal sealed class FakeInferenceClient : IInferenceClient
             ContentType = streaming ? "text/event-stream" : "application/json",
             Body = new MemoryStream(Encoding.UTF8.GetBytes(body)),
         };
+    }
+
+    public Task<InferenceResponse> ListModelsAsync(CancellationToken cancellationToken)
+    {
+        ListModelsCalls++;
+
+        // InferenceResponse owns the message and disposes it, which CA2000 cannot see
+        // across the constructor.
+#pragma warning disable CA2000
+        InferenceResponse response = new(new HttpResponseMessage())
+#pragma warning restore CA2000
+        {
+            StatusCode = HttpStatusCode.OK,
+            ContentType = "application/json",
+            Body = new MemoryStream(Encoding.UTF8.GetBytes(ModelListBody)),
+        };
+
+        return Task.FromResult(response);
     }
 
     /// <summary>

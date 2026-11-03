@@ -13,6 +13,8 @@ internal sealed class VllmInferenceClient : IInferenceClient
 {
     private const string ChatCompletionsPath = "v1/chat/completions";
 
+    private const string ModelsPath = "v1/models";
+
     private readonly HttpClient httpClient;
 
     public VllmInferenceClient(HttpClient httpClient)
@@ -36,6 +38,26 @@ internal sealed class VllmInferenceClient : IInferenceClient
         // ResponseHeadersRead returns as soon as the headers land, leaving the body
         // unread on the wire. The default buffers the entire response first, which would
         // silently defeat streaming with no error to show for it.
+        HttpResponseMessage response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken
+        );
+
+        return new InferenceResponse(response)
+        {
+            StatusCode = response.StatusCode,
+            ContentType = response.Content.Headers.ContentType?.ToString(),
+            Body = await response.Content.ReadAsStreamAsync(cancellationToken),
+        };
+    }
+
+    public async Task<InferenceResponse> ListModelsAsync(CancellationToken cancellationToken)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Get, ModelsPath);
+
+        // ResponseHeadersRead for the same reason as above. The model list is small enough
+        // that buffering would not hurt, but one relay path means one set of semantics.
         HttpResponseMessage response = await httpClient.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,

@@ -111,6 +111,8 @@ app.UseMiddleware<CredentialMiddleware>();
 
 app.MapChatCompletions();
 
+app.MapModels();
+
 app.MapAdminEndpoints();
 
 await app.RunAsync();
