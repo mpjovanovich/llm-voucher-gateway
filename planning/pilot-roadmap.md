@@ -19,13 +19,13 @@ The dev GPU box is lower spec than production. These milestones prove shape and 
 
 ## Completed: Milestones 1–5, 6a–6f
 
-| Milestone | Where to look |
-| --- | --- |
-| 1. vLLM on a GPU host, capture set | [api_documentation/](../api_documentation/) |
-| 2. Aider against vLLM directly | Baseline for Milestone 3 |
-| 3. Pass-through API | [api_documentation/README.md](../api_documentation/README.md#streaming-baseline--milestone-3), [LlmVoucherGateway.Api.http](../src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.http) |
-| 4. Persistence (SQLite, EF Core) | [Persistence/](../src/LlmVoucherGateway.Api/Persistence/) |
-| 5. Voucher issuance, admin auth, issuance logging | [Endpoints/](../src/LlmVoucherGateway.Api/Endpoints/), [Credentials/](../src/LlmVoucherGateway.Api/Credentials/) |
+| Milestone                                                                                                  | Where to look                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. vLLM on a GPU host, capture set                                                                         | [api_documentation/](../api_documentation/)                                                                                                                                                                                                                                                                                   |
+| 2. Aider against vLLM directly                                                                             | Baseline for Milestone 3                                                                                                                                                                                                                                                                                                      |
+| 3. Pass-through API                                                                                        | [api_documentation/README.md](../api_documentation/README.md#streaming-baseline--milestone-3), [LlmVoucherGateway.Api.http](../src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.http)                                                                                                                                          |
+| 4. Persistence (SQLite, EF Core)                                                                           | [Persistence/](../src/LlmVoucherGateway.Api/Persistence/)                                                                                                                                                                                                                                                                     |
+| 5. Voucher issuance, admin auth, issuance logging                                                          | [Endpoints/](../src/LlmVoucherGateway.Api/Endpoints/), [Credentials/](../src/LlmVoucherGateway.Api/Credentials/)                                                                                                                                                                                                              |
 | 6a–6f. Error contract, fake inference client, spendability, voucher lookup, enforcement, rejection logging | [Errors/](../src/LlmVoucherGateway.Api/Errors/), [CredentialMiddleware.cs](../src/LlmVoucherGateway.Api/Middleware/CredentialMiddleware.cs), [VoucherRequiredEndpointFilter.cs](../src/LlmVoucherGateway.Api/Credentials/VoucherRequiredEndpointFilter.cs), [Voucher.cs](../src/LlmVoucherGateway.Domain/Vouchers/Voucher.cs) |
 
 Run with `make up-llm && make run-api`.
@@ -126,16 +126,32 @@ Other open items:
 
 ---
 
-## 7. Consumption recording
+## 7. Consumption recording — IMPLEMENTED ON BRANCH, PENDING LIVE vLLM VALIDATION
+
+Built on `cursor/consumption-recording-f460`, not yet merged into `main`. See `ConsumptionRecorder.cs`, `InferenceResponseRelay.cs` and `ConsumptionRecordingTests.cs` there.
 
 - Read `usage.total_tokens` from the response and add it to the voucher's consumption. `total_tokens` already includes the prompt; adding `prompt_tokens` again would double-bill it
 - Streaming: vLLM forces usage server-side with `--enable-force-include-usage` (set in `docker-compose.llm.yml`). Every chunk carries a running count, so the gateway relays bytes untouched and parses only the last `data:` line after the stream ends. See [streaming-response-forced-usage.md](../api_documentation/chat-completions/streaming-response-forced-usage.md)
-- The flag must be set wherever the pilot's vLLM runs. Without it, streaming requests meter as nothing
+- **The flag must be set wherever the pilot's vLLM runs.** Without it, streaming requests meter as nothing
 - Soft limits: check on entry, record after, overshoot accepted
-- A recording failure must not fail the request
 - Use `Voucher.RecordConsumption` against the aggregate already on the resolved credential
 
-**Done when:** consumption tracks across a real multi-turn agentic session. Add a test that runs a known-token request and asserts the recorded amount, since this is the first milestone whose correctness isn't obvious from using it.
+### As built
+
+- **The relay shows each chunk to an `IUsageObserver` after writing it**, chosen by Content-Type. Bytes are never altered or held back, and the unbuffered-streaming test still passes. `text/event-stream` keeps only the last `data:` line, skipping `[DONE]` and tolerating lines split across reads; anything else keeps a side copy of the body
+- **Recorded in a `finally`, with no cancellation token**, so a client that disconnects mid-stream is still charged the running total from the last chunk that got out. An unterminated trailing line is ignored as the fragment a disconnect leaves behind
+- **A recording failure is logged at `Error` and swallowed.** The response has already gone out, and an escaping exception would abort the connection before the response ends. No voucher id or prefix in the line
+- The fake replays the forced-usage capture, since that is what the gateway sees. The unforced capture backs only the test that a server started without the flag still serves requests, unmetered
+- Tests assert stored `Consumed` against captures with known totals (45 non-streaming, 60 streamed): single requests, accumulation across turns, an overshoot kept in full then refused with `403`, upstream errors and usage-less streams recording nothing, a failing save still delivering the whole body, and a mid-stream disconnect
+
+### Known limitations, accepted
+
+- **Concurrent requests on one voucher can lose a charge.** Each request loads the voucher on entry and saves an absolute total, so overlapping requests (two client windows, a harness side request, a retry while the original runs) can overwrite each other. It under-meters and never blocks anyone, which soft budgets tolerate. The fix is a concurrency token on `Consumed` with reload-and-retry. Revisit with Milestone 10's concurrency numbers
+- **A stream that ends in an error event is unmetered.** If vLLM fails mid-generation, the last `data:` line is the error rather than a chunk with usage. Rare enough not to justify parsing every chunk
+
+**Left for the GPU box:** a real multi-turn session, Streamlit then Aider, checking `Consumed` in the database after each turn against the `usage` vLLM reported, plus a request abandoned mid-stream.
+
+**Done when:** consumption tracks across a real multi-turn agentic session.
 
 **Fallback:** if metering streamed output proves fragile, meter on input tokens or request count. Don't get stuck here.
 
