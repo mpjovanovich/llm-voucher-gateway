@@ -126,9 +126,9 @@ Other open items:
 
 ---
 
-## 7. Consumption recording — IMPLEMENTED ON BRANCH, PENDING LIVE vLLM VALIDATION
+## 7. Consumption recording
 
-Built on `cursor/consumption-recording-f460`, not yet merged into `main`. See `ConsumptionRecorder.cs`, `InferenceResponseRelay.cs` and `ConsumptionRecordingTests.cs` there.
+_In Progress - awaiting dev tests_
 
 - Read `usage.total_tokens` from the response and add it to the voucher's consumption. `total_tokens` already includes the prompt; adding `prompt_tokens` again would double-bill it
 - Streaming: vLLM forces usage server-side with `--enable-force-include-usage` (set in `docker-compose.llm.yml`). Every chunk carries a running count, so the gateway relays bytes untouched and parses only the last `data:` line after the stream ends. See [streaming-response-forced-usage.md](../api_documentation/chat-completions/streaming-response-forced-usage.md)
@@ -136,18 +136,12 @@ Built on `cursor/consumption-recording-f460`, not yet merged into `main`. See `C
 - Soft limits: check on entry, record after, overshoot accepted
 - Use `Voucher.RecordConsumption` against the aggregate already on the resolved credential
 
-### As built
-
-- **The relay shows each chunk to an `IUsageObserver` after writing it**, chosen by Content-Type. Bytes are never altered or held back, and the unbuffered-streaming test still passes. `text/event-stream` keeps only the last `data:` line, skipping `[DONE]` and tolerating lines split across reads; anything else keeps a side copy of the body
-- **Recorded in a `finally`, with no cancellation token**, so a client that disconnects mid-stream is still charged the running total from the last chunk that got out. An unterminated trailing line is ignored as the fragment a disconnect leaves behind
-- **A recording failure is logged at `Error` and swallowed.** The response has already gone out, and an escaping exception would abort the connection before the response ends. No voucher id or prefix in the line
-- The fake replays the forced-usage capture, since that is what the gateway sees. The unforced capture backs only the test that a server started without the flag still serves requests, unmetered
-- Tests assert stored `Consumed` against captures with known totals (45 non-streaming, 60 streamed): single requests, accumulation across turns, an overshoot kept in full then refused with `403`, upstream errors and usage-less streams recording nothing, a failing save still delivering the whole body, and a mid-stream disconnect
-
 ### Known limitations, accepted
 
 - **Concurrent requests on one voucher can lose a charge.** Each request loads the voucher on entry and saves an absolute total, so overlapping requests (two client windows, a harness side request, a retry while the original runs) can overwrite each other. It under-meters and never blocks anyone, which soft budgets tolerate. The fix is a concurrency token on `Consumed` with reload-and-retry. Revisit with Milestone 10's concurrency numbers
 - **A stream that ends in an error event is unmetered.** If vLLM fails mid-generation, the last `data:` line is the error rather than a chunk with usage. Rare enough not to justify parsing every chunk
+
+### Develeoper Tests
 
 **Left for the GPU box:** a real multi-turn session, Streamlit then Aider, checking `Consumed` in the database after each turn against the `usage` vLLM reported, plus a request abandoned mid-stream.
 
