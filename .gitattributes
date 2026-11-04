@@ -1,0 +1,3 @@
+# SSE fixtures frame events with a blank line, so CRLF translation would corrupt
+# them into bodies the gateway's stream reader no longer splits.
+*.sse text eol=lf

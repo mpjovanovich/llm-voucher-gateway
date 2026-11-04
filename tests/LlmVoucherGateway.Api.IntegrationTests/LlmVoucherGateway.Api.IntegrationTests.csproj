@@ -19,22 +19,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <!-- The Milestone 1 captures are the fake client's script. Linked rather than copied,
-       so there is one source of truth and a re-capture cannot leave the tests asserting
-       against a stale response shape. -->
   <ItemGroup>
-    <Content Include="..\..\api_documentation\chat-completions\non-streaming-response.json"
-             Link="Captures\non-streaming-response.json"
-             CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\api_documentation\chat-completions\streaming-response-forced-usage.md"
-             Link="Captures\streaming-response-forced-usage.md"
-             CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\api_documentation\chat-completions\streaming-response.md"
-             Link="Captures\streaming-response.md"
-             CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\api_documentation\errors\*.json"
-             Link="Captures\errors\%(Filename)%(Extension)"
-             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

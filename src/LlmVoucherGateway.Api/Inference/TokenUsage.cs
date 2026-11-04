@@ -22,6 +22,8 @@ internal static class TokenUsage
             using var document = JsonDocument.Parse(json);
 
             if (
+                // If everything is valid for the provided json, return the total tokens.
+                // This is validating shape and type.
                 document.RootElement.ValueKind == JsonValueKind.Object
                 && document.RootElement.TryGetProperty("usage", out JsonElement usage)
                 && usage.ValueKind == JsonValueKind.Object
