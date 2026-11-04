@@ -40,8 +40,7 @@ public class ChatCompletionsEndpointTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
 
-        // Byte-for-byte: the relay parses nothing, and Milestone 7 is the first time it
-        // will look inside a response at all.
+        // Byte-for-byte: the relay reads usage on the way past but never alters the bytes.
         Assert.Equal(CapturedResponses.NonStreamingBody(), await response.Content.ReadAsStringAsync());
     }
 

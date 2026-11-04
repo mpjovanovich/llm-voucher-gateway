@@ -1,0 +1,46 @@
+{
+  "variants": [
+    {
+      "description": "Invalid JSON syntax in the request body (truncated/unclosed object).",
+      "request": {
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "raw_body": "{\n    \"model\": \"Qwen/Qwen2.5-0.5B-Instruct\",\n    \"messages\": [{\"role\": \"user\", \"content\": \"hi\"}]\n  "
+      },
+      "response": {
+        "http_status": 400,
+        "body": {
+          "error": {
+            "message": "1 validation error:\n  {'type': 'json_invalid', 'loc': ('body', 99), 'msg': 'JSON decode error', 'input': {}, 'ctx': {'error': \"Expecting ',' delimiter\"}}",
+            "type": "Bad Request",
+            "param": "body.99",
+            "code": 400
+          }
+        }
+      }
+    },
+    {
+      "description": "Well-formed JSON that fails schema validation (messages is a string instead of a list).",
+      "request": {
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "body": {
+          "model": "Qwen/Qwen2.5-0.5B-Instruct",
+          "messages": "this should be a list"
+        }
+      },
+      "response": {
+        "http_status": 400,
+        "body": {
+          "error": {
+            "message": "1 validation error:\n  {'type': 'list_type', 'loc': ('body', 'messages'), 'msg': 'Input should be a valid list', 'input': 'this should be a list'}",
+            "type": "Bad Request",
+            "param": "body.messages",
+            "code": 400
+          }
+        }
+      }
+    }
+  ],
+  "note": "Both variants return HTTP 400 with type 'Bad Request', distinct from the 'BadRequestError'/'NotFoundError' type strings used for semantic errors (context overflow, unknown model). Milestone 5's error-shape matching should account for both type strings appearing under the same OpenAI-style {\"error\": {...}} envelope."
+}

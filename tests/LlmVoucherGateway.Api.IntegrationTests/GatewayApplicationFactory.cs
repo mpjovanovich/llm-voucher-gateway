@@ -4,6 +4,7 @@ using LlmVoucherGateway.Api.Endpoints;
 using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Inference;
 using LlmVoucherGateway.Api.IntegrationTests.Inference;
+using LlmVoucherGateway.Api.IntegrationTests.Persistence;
 using LlmVoucherGateway.Api.Persistence;
 using LlmVoucherGateway.Domain.Abstractions;
 using Microsoft.AspNetCore.Hosting;
@@ -37,6 +38,11 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
     /// The application's clock, so a test can advance past a voucher's expiry.
     /// </summary>
     public TestClock Clock { get; } = new();
+
+    /// <summary>
+    /// Lets a test make database writes fail after it has set up what it needs.
+    /// </summary>
+    public DatabaseFaults DatabaseFaults { get; } = new();
 
     /// <summary>
     /// A database of this factory's own, so tests neither share state nor inherit the
@@ -118,6 +124,7 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
         {
             services.AddSingleton<IInferenceClient>(InferenceClient);
             services.AddSingleton<IDateTimeProvider>(Clock);
+            services.ConfigureDbContext<VoucherDbContext>(options => options.AddInterceptors(DatabaseFaults));
         });
 
         builder.ConfigureAppConfiguration(configuration =>

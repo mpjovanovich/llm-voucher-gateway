@@ -138,8 +138,8 @@ public class VoucherRequiredEndpointFilterTests
     }
 
     /// <summary>
-    /// Changes voucher state the way Milestones 7 and 8 will, since neither the revoke
-    /// endpoint nor consumption recording exists yet.
+    /// Changes voucher state directly, so each rejection can be set up in one step rather
+    /// than by spending a voucher down or by a revoke endpoint that does not exist yet.
     /// </summary>
     private static async Task MutateVoucherAsync(
         GatewayApplicationFactory factory,

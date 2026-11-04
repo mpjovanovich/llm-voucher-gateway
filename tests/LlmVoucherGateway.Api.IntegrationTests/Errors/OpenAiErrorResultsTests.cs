@@ -15,7 +15,7 @@ public class OpenAiErrorResultsTests
 {
     private static readonly string CapturedErrorDirectory = Path.Combine(
         AppContext.BaseDirectory,
-        "Captures",
+        "Fixtures",
         "errors"
     );
 
