@@ -15,9 +15,16 @@ internal interface IUsageObserver
     /// </summary>
     int? ReadTotalTokens();
 
+
+    // This is in place because the OpenAI client may request a streaming
+    // response, in which case vLLM returns an event stream. Otherwise it
+    // returns json.
+
     /// <summary>
-    /// The observer for a response's shape: an event stream holds its count in the last
-    /// chunk, anything else is read as a single JSON document.
+    /// Picks an observer from the upstream response's <c>Content-Type</c>. A caller
+    /// that sets <c>"stream": true</c> gets <c>text/event-stream</c> back from vLLM,
+    /// and the count is taken from the last chunk. Any other content type is one
+    /// JSON document.
     /// </summary>
     static IUsageObserver ForContentType(string? contentType) =>
         MediaTypeHeaderValue.TryParse(contentType, out MediaTypeHeaderValue? mediaType)
