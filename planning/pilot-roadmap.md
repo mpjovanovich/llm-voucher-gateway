@@ -2,217 +2,53 @@
 
 Each milestone ends in something demonstrable. Ordering favors killing unknowns early over building in layers.
 
+This is a temporary working document. Settled detail lives in the code and tests; this keeps status, decisions whose reasoning the code can't show, and the open work.
+
 ---
 
 ## Environment split
 
-Development may happens across two machine hardware profiles, and the roadmap depends on knowing which is which.
+- **GPU box** — runs vLLM. Any dev machine with an NVIDIA GPU. The only place real responses come from.
+- **Non-GPU machine** — AVX2 only, so it cannot run vLLM's CPU backend. No local inference.
 
-- **GPU box** Runs vLLM. Can be a dev machine as long as it has an NVIDIA GPU. The only place real responses come from.
-- **Non GPU machine** Noted here because some dev machines do not have an NVIDIA GPU; AVX2 only — no AVX512 — so it cannot run vLLM's CPU backend. We can't run local inference on machines of this profile.
+**Requires live vLLM:** Milestones 1, 2, 3, 6g, 10. Everything else can proceed without a GPU.
 
-**Requires live running vLLM:** Milestones 1, 2, 3, 6g, 10
-**Can proceed without a GPU:** Milestones 4, 5, 6 (except 6g), 7, 8, 9
-
-The dev GPU box is lower spec'd than production hardware. That is accepted: these milestones prove shape and plumbing, not performance. Performance is Milestone 10's question.
+The dev GPU box is lower spec than production. These milestones prove shape and plumbing, not performance; performance is Milestone 10.
 
 ---
 
-## 1. vLLM running on a host machine with an NVIDIA GPU
-
-_COMPLETE_
-
-Docker Compose, tiny model (Qwen2.5-0.5B-Instruct), GPU passthrough. Requires a host with an NVIDIA GPU.
-
-- `curl /v1/models` returns the served model
-- `curl /v1/chat/completions` returns valid JSON
-- Same request with `"stream": true` returns SSE chunks ending in `[DONE]`
-
-### Capture set
-
-_COMPLETE_ — see [api_documentation/](../api_documentation/)
-
-Everything later milestones will be built against. Capture generously — anything missed here is a return trip.
-
-- Non-streaming response
-- Streaming response, **including the final chunk**: where `finish_reason` lands, and whether `usage` appears there
-- Streaming response with `stream_options: {"include_usage": true}` — feeds Milestone 7
-- Error payloads: context-length overflow, malformed request, unknown model name — feed Milestone 6
-- `/openapi.json` from the running instance, committed to the repo
-- The pinned vLLM image tag, recorded
-
-**Done when:** the full capture set is committed.
-
-**Note:** the pinned image tag is the drift control. There is no CI schema check — Milestone 10 re-pulls and diffs `openapi.json` if the vLLM version changes, and that is the only point at which drift is possible.
-
-**Gap to fill if Milestone 2 needs it:** no tool-call request or response shape was captured, and the compose command does not enable vLLM's tool-call parser (`--enable-auto-tool-choice --tool-call-parser hermes`). If the harness sends `tools`, this is the return trip.
-
----
-
-## 2. Harness against vLLM directly
-
-_COMPLETE_ — run 2026-09-12 as the baseline for Milestone 3's harness check
-
-**Observed:** Aider 0.86.2 (`--model openai/Qwen/Qwen2.5-0.5B-Instruct`, whole edit format) requests only `POST /v1/chat/completions`, streamed — no `GET /v1/models`, no other paths. A task issues two requests: the edit, then Aider's automatic lint-fix follow-up. No tool calling, so vLLM's tool-call parser was not needed. As predicted, the model mangled the CSV (rewrote it as a Markdown table, misgraded a row). This covers Aider only; a chat client chosen later may request other paths.
-
-Prove the harness plumbing works before we start coding against the API. Requires live vLLM.
-
-- Aider or OpenCode configured at the vLLM endpoint (`localhost:8000`)
-- Record which paths the harness actually requests — `GET /v1/models` is the likely extra one, and Milestone 3 has to serve whatever shows up here
-- Attempt the small file-edit task (the CSV demo)
-
-**Done when:** the harness connects, issues requests, and renders a streamed response without protocol errors.
-
-**Note:** edit quality is not the bar. Qwen2.5-0.5B will likely fail the file-edit task on capability alone, and enabling tool calling may be needed before the harness will even attempt it. Neither is a blocker — this milestone is about the request/response loop. Model capability is Milestone 10's question.
-
----
-
-## 3. Pass-through API
-
-_COMPLETE_ — streaming baseline recorded in [api_documentation/README.md](../api_documentation/README.md#streaming-baseline--milestone-3)
-
-**Result:** Aider through the gateway produced byte-identical output to Aider against vLLM directly, including the unknown-model error (vLLM's 404 relayed verbatim). Per-chunk timing through the gateway matched vLLM direct (~4 ms median gap, a few ms added to first chunk). Run with `make up-llm && make run-api`; sample requests in [LlmVoucherGateway.Api.http](../src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.http).
-
-_Detailed build plan: [tmp-milestone-3-passthrough-api.md](tmp-milestone-3-passthrough-api.md)_
-
-.NET Core API, minimal APIs, no auth, no vouchers. Accepts `/v1/chat/completions`, forwards to vLLM, returns the response.
-
-- `IInferenceClient` + `VllmInferenceClient` behind it, endpoint supplied by configuration — this is the seam that lets the same code target local vLLM in development and real hardware in production
-- Base URL driven by configuration from the start, validated at startup: localhost, production
-- Request and response bodies forward opaquely — no DTOs. Parsing arrives in Milestone 7, and only for `usage`
-- **Streaming must pass through unbuffered**
-- Point the harness at your API instead of vLLM and redo the Milestone 2 task
-
-**Done when:** the harness can't tell the difference.
-
-**Requires live vLLM.** Streaming passthrough has to be proven against the real server, with per-chunk arrival timestamps compared against vLLM direct. Identical payloads prove nothing; only timing distinguishes a buffering proxy.
-
-**Risk:** ASP.NET buffering the response. A harness against a buffering proxy looks hung, not broken, and it's difficult to diagnose later with auth and vouchers in the way. Prove it here while there's nothing else added on top of it.
-
----
-
-## 4. Persistence
-
-_COMPLETE_ — see [Persistence/](../src/LlmVoucherGateway.Api/Persistence/)
-
-**SQLite and EF Core.** No new behavior of its own — it exists so issuance has somewhere to write (5b.1) and Milestone 6 has a row to look up.
-
-**Executed out of numeric order:** 5a and 5b were built before this, because neither needed a database. 5b.1 does, so this milestone lands between 5b and 5c. The numbering is left alone rather than churning cross-references.
-
-- `DbContext`, database file path from configuration and validated at startup like the other options
-- Lives in `src/LlmVoucherGateway.Api/Persistence/`. One table does not justify a third project, and the constraint that matters — the domain stays persistence-ignorant — holds either way
-- Map the existing voucher aggregate: `VoucherKey` and `VoucherLifetime` as owned types, with a unique index on the key hash, which is what Milestone 6 looks up by
-- `Voucher` needs a private parameterless constructor. EF cannot bind owned types through a constructor, and its only constructor takes both value objects
-- Migration workflow settled and documented: `make migration name=AddSomething`, which writes to `Persistence/Migrations`. There is no separate update command, because startup applies whatever migrations exist
-- `Database.Migrate()` at startup, so the container is self-sufficient. Accepted tradeoff: schema changes apply on boot, which is right for one instance and wrong for two. Revisit only if the deployment stops being a single container
-
-**Why SQLite over Postgres:** the workload is one table, one indexed lookup per request, and one decrement after, for under 20 users whose requests occupy a GPU for seconds — the database is never the constraint. What SQLite buys is deployment: one container instead of two, no second service to sequence at startup, no database credentials to hold, and a materially shorter "it's down, what now" procedure in Milestone 9. Postgres remains the upgrade path and stays cheap, because with one aggregate and no provider-specific SQL it is a connection string and regenerated migrations. Take it if the deployment ever grows past a single API instance, or if a second tool needs to write concurrently.
-
-**Backups cannot be `cp`.** In WAL mode committed data is spread across the main file and the WAL, so copying a live database can capture a torn state. The periodic job runs `sqlite3 vouchers.db ".backup /mnt/backup/vouchers.db"` or `VACUUM INTO` — same cron shape, consistent snapshot, no need to stop the service.
-
-**Single writer, accepted.** SQLite serializes writes, and WAL mode keeps readers unaffected while a write is in flight. Nothing to configure: EF Core's SQLite provider issues `PRAGMA journal_mode = 'wal'` itself, and Microsoft.Data.Sqlite retries a busy database for the duration of the command timeout, 30 seconds by default — both confirmed against the database the first migration created. Our writes are rare and short anyway, one per issuance call and one per completed request. This is the limit that would eventually force Postgres, not read volume.
-
-**Done when:** a migration creates the voucher table and a round-trip test saves and reloads a voucher with its value objects intact.
-
----
-
-## 5. Voucher issuance
-
-_COMPLETE_ — see [Vouchers/](../src/LlmVoucherGateway.Domain/Vouchers/)
-
-Admin endpoint over `Voucher.Issue`. It mints a batch and the response body is that batch. No file, and no enforcement on `/v1/chat/completions`. Lookup is Milestone 6 and is not a prerequisite. Persistence (Milestone 4) is not needed for 5a or 5b, but 5b.1 is where issuance starts writing, so Milestone 4 runs before it.
-
-`Voucher.Issue`, `VoucherKey` and `VoucherKeyGenerator` already exist, so all four substeps below are API-side.
-
-**Substep ordering:** credential resolution (5a), then minting (5b), then the requirement that guards it (5c), then the audit trail (5d). Minting comes before its guard because an endpoint is testable on its own — correct JSON array, `400`s on bad input — while a requirement is not testable until there is a route to attach it to. The route is open for one substep, inside the dev loop only; 5c is a prerequisite for running this anywhere a student can reach, and nothing is deployed between the two.
-
-### 5a. Credential middleware
-
-_COMPLETE_ — see [CredentialMiddleware.cs](../src/LlmVoucherGateway.Api/Credentials/CredentialMiddleware.cs) and [CredentialMiddlewareTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Credentials/CredentialMiddlewareTests.cs)
-
-Resolution only. Written once, here; Milestone 6 fills in a branch rather than rewriting it.
-
-- Bearer token resolves to `{ VoucherId?, IsAdmin }`, attached to the request as a feature
-- Admin branch is live. Configuration is a list of valid keys, not a single key. A match sets `IsAdmin`
-- Voucher branch is the same middleware with no lookup yet. It lands in Milestone 6
-- An unrecognized token attaches no credential and the request continues. Rejecting it is the route's decision, which is why enforcement sits in 5c
-- `/v1/chat/completions` stays open
-
-**Done when:** a configured admin key resolves to an admin credential; a missing bearer, an unknown token, and the right secret under the wrong scheme all resolve to no credential; and the Milestone 3 harness run still passes through untouched.
-
-### 5b. Issuance endpoint
-
-_COMPLETE_ — see [VoucherIssuanceEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/VoucherIssuanceEndpoint.cs)
-
-Unprotected: the route is open and 5c closes it. Build the thing, then guard it.
-
-`POST /admin/vouchers`
-
-Request JSON:
-
-- `section` — optional string, stamped on every voucher in the batch
-- `count` — how many to issue; positive integer
-- `allowance` — positive token budget, the same for every voucher in the batch
-- `expiresAt` — instant strictly after issuance time
-
-Response: `200 application/json`, a JSON array with one object per issued voucher. The endpoint loops `Voucher.Issue`; it does not invent a second model.
-
-- `id`
-- `key` — the bearer secret. This response is the only place it exists. The aggregate keeps the hash and an 8-character `prefix`
-- `prefix`
-- `section`, `allowance`, `consumed` (`0`), `status` (`Active`), `createdAt`, `expiresAt`
-
-Whoever called it distributes that array. The API does not write a CSV or any other file.
-
-`400` when `count` is not a positive integer or exceeds the configured cap, or when the domain rejects the call: allowance not positive, or `expiresAt` not in the future.
-
-- `count` is capped by `VoucherIssuance:MaxPerRequest`, default `100`. An uncapped mint loop is one typo away from a runaway batch, and every key in the response is unrecoverable once that response is gone
-
-**Done when:** `curl` with no bearer token at all gets a JSON array of 20 voucher objects, and each bad request above gets a `400` instead of a `500`.
-
-### 5b.1 Issuance writes, verified against a real database
-
-_COMPLETE_ — see [VoucherIssuanceEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/VoucherIssuanceEndpoint.cs) and [VoucherIssuanceEndpointTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Endpoints/VoucherIssuanceEndpointTests.cs)
-
-Required Milestone 4. Until here, a minted batch existed only in the response body.
-
-This substep was written before Milestone 4 existed and shrank once it did: the per-test database, the choice of the SQLite provider over EF's non-relational `InMemory` one, the fresh-`DbContext` discipline, and the `InternalsVisibleTo` for `VoucherKeyGenerator.Hash` were all settled there. What was left is below.
-
-- The endpoint adds each voucher as it mints it and calls `SaveChangesAsync` once after the loop, so either every voucher in the response exists or none does — a partial write would hand out keys the gateway cannot honour, and the response is the only copy of them. The response itself is unchanged: plaintext keys still appear once and only there
-- The test posts a batch, then opens a fresh scope and asserts against the stored rows: one row per object returned, each returned key hashing to its stored `Key_Hash`, matching prefix, the plaintext never stored, and the batch policy — section, allowance, expiry — on every row. The hash assertion is the one that matters: Milestone 6 resolves a bearer token by hashing it and matching that column, so a mismatch would mean vouchers that can never be used
-- Field-by-field assertions on the aggregate stay in [VoucherRoundTripTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Persistence/VoucherRoundTripTests.cs) rather than being repeated here. That test is kept deliberately: it is the only one that exercises persistence without HTTP, so it localizes a failure to the mapping, and Milestones 7 and 8 write to the same aggregate
-
-**Done when:** a single issuance call is followed by a query that finds the expected rows, with hashes matching the keys from the response.
-
-### 5c. Admin authorization
-
-_COMPLETE_ — see [AdminEndpoints.cs](../src/LlmVoucherGateway.Api/Endpoints/AdminEndpoints.cs) and [AdminOnlyEndpointFilter.cs](../src/LlmVoucherGateway.Api/Credentials/AdminOnlyEndpointFilter.cs)
-
-Closes the route 5b opened. The credential is already resolved by 5a's middleware; this is only the decision to reject.
-
-- An `/admin` route group carries the requirement, so every later admin route inherits it. Milestone 8's revocation and listing routes get it for free
-- `IsAdmin` passes. A missing bearer, an unknown token, and a resolved voucher credential are all `401`
-- **Mechanism: an endpoint filter on the group, not ASP.NET's authentication/authorization stack.** The stack wants an authentication handler producing a `ClaimsPrincipal`, then policies evaluated against claims — apparatus for carrying one boolean, given the plan has no user entities. It would also duplicate 5a's middleware, since the handler _is_ the resolver in that design. Its one real perk, framework-generated `401` challenges, is something Milestone 6 has to override anyway because rejections must be OpenAI-shaped JSON. An endpoint filter on a `MapGroup` is the minimal-API-native mechanism and keeps the response body ours
-- Rejection body stays empty here. The OpenAI-shaped payload is Milestone 6's bar, and that work should shape both the voucher rejections and this one at once
-
-**Done when:** `POST /admin/vouchers` with a configured admin key still returns the 20-voucher array, and the same call with no bearer and with an unknown token both return `401`.
-
-### 5d. Issuance logging
-
-_COMPLETE_ — Serilog, see [Program.cs](../src/LlmVoucherGateway.Api/Program.cs) and [VoucherIssuanceLoggingTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Endpoints/VoucherIssuanceLoggingTests.cs)
-
-The audit trail for keys that exist in exactly one response body and nowhere else.
-
-- **Serilog replaces the default providers** (`ClearProviders` then `AddSerilog`), configured from the `Serilog` section of appsettings: console sink, `Information` default, with `Microsoft.AspNetCore` and `Microsoft.EntityFrameworkCore` at `Warning` — the second because EF logs every statement at `Information` and buries everything else
-- **One line per issuance call, logged on entry rather than after the save.** The signal is that somebody asked, which matters whether or not the call succeeded, and a request rejected for a bad count leaves no row to find later. It carries source IP, section and requested count; Serilog stamps the time, and time plus address is enough to query the database for what was actually minted. Nothing identifying a voucher is logged — not ids, not prefixes
-- **Rejections are logged at `Warning`** in `AdminOnlyEndpointFilter`, with method, path, address and a reason. A rejected admin call is either an operator with the wrong key or somebody probing for one, and the request never reaches an endpoint, so this is its only record
-- **The `key` field is not logged, at any level**, and neither is the attempted bearer token on a rejection — the first time somebody pastes the right key into the wrong tool, logging it would put the secret in the log
-- **Serilog gets `preserveStaticLogger: true`.** Otherwise the first host created in a process owns `Log.Logger` for every host after it, which inside a test run sends one host's output into another host's sinks. Nothing here uses Serilog's static API
-- **`ReadFrom.Services`** lets a sink registered in the container contribute beside the configured ones. That is the seam the logging tests use, since `AddSerilog` replaces `ILoggerFactory` with Serilog's own and an `ILoggerProvider` registered through DI records nothing
-
-**Done when:** an issuance call produces a line naming the section and requested count with no voucher data in it; a call with an unknown bearer produces a rejection line; and a search of the captured log finds neither a plaintext key from the response nor the attempted token. Covered by `VoucherIssuanceLoggingTests`, where each absence assertion is paired with a positive one — a search for an absent secret also passes when nothing was logged at all.
-
-**Done when (whole milestone):** all four substeps, exercised in one call — `curl` with an admin bearer token gets a JSON array of 20 voucher objects, and the log line for that call has ids and prefixes but not keys.
+## Completed: Milestones 1–5, 6a–6f
+
+| Milestone | Where to look |
+| --- | --- |
+| 1. vLLM on a GPU host, capture set | [api_documentation/](../api_documentation/) |
+| 2. Aider against vLLM directly | Baseline for Milestone 3 |
+| 3. Pass-through API | [api_documentation/README.md](../api_documentation/README.md#streaming-baseline--milestone-3), [LlmVoucherGateway.Api.http](../src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.http) |
+| 4. Persistence (SQLite, EF Core) | [Persistence/](../src/LlmVoucherGateway.Api/Persistence/) |
+| 5. Voucher issuance, admin auth, issuance logging | [Endpoints/](../src/LlmVoucherGateway.Api/Endpoints/), [Credentials/](../src/LlmVoucherGateway.Api/Credentials/) |
+| 6a–6f. Error contract, fake inference client, spendability, voucher lookup, enforcement, rejection logging | [Errors/](../src/LlmVoucherGateway.Api/Errors/), [CredentialMiddleware.cs](../src/LlmVoucherGateway.Api/Middleware/CredentialMiddleware.cs), [VoucherRequiredEndpointFilter.cs](../src/LlmVoucherGateway.Api/Credentials/VoucherRequiredEndpointFilter.cs), [Voucher.cs](../src/LlmVoucherGateway.Domain/Vouchers/Voucher.cs) |
+
+Run with `make up-llm && make run-api`.
+
+### Findings worth carrying forward
+
+- **Aider requests only streamed `POST /v1/chat/completions`** — no `GET /v1/models`, no tool calling. Each task issues two requests: the edit, then Aider's automatic lint-fix follow-up. A different client may request other paths.
+- **Tool calling is not enabled.** No tool-call shape was captured, and the compose command lacks `--enable-auto-tool-choice --tool-call-parser hermes`. If a harness sends `tools`, that is a return trip to Milestone 1.
+- **Streaming passthrough is proven unbuffered only against vLLM direct** (Milestone 3, per-chunk timing). The fake inference client uses a `MemoryStream`, so the test suite cannot catch buffering. It must be re-proven through Caddy in Milestone 9.
+- **The pinned vLLM image tag is the drift control.** There is no CI schema check; Milestone 10 re-pulls and diffs `openapi.json` if the version changes.
+
+### Decisions and their reasons
+
+- **SQLite over Postgres.** One table, one indexed lookup per request, under 20 users. SQLite buys a single container, no credentials, and a shorter recovery procedure. Postgres is the upgrade path, and cheap: a connection string and regenerated migrations. Take it if the deployment grows past one API instance or a second writer appears.
+- **Migrations apply at startup** (`Database.Migrate()`). Right for one instance, wrong for two.
+- **Backups cannot be `cp`.** In WAL mode a live copy can be torn. Use `sqlite3 vouchers.db ".backup /mnt/backup/vouchers.db"` or `VACUUM INTO`.
+- **No lookup cache.** A lookup is free at this scale, and a cache would delay revocation. Revisit only if Milestone 10 shows a reason.
+- **Admin auth is an endpoint filter on the `/admin` group, not ASP.NET's auth stack.** The stack would duplicate the credential middleware to carry one boolean, and its framework challenges would have to be overridden for OpenAI-shaped errors anyway. New admin routes inherit the filter by joining the group.
+- **Credential resolution and rejection are separate.** The middleware only resolves (a revoked or exhausted voucher still resolves); endpoint filters decide. The resolved credential carries the loaded, tracked `Voucher` so Milestone 7 can record consumption without a second query.
+- **Status map:** unknown, revoked and expired are `401 invalid_request_error`; exhausted is `403 insufficient_quota`. `403` was chosen over `402` and `429`. `code` is numeric, matching vLLM rather than OpenAI. Admin `401`s keep empty bodies because only operators with curl see them.
+- **An admin key does not pass `/v1/chat/completions` or `/v1/models`.** Admitting it would leave an unmetered path to the GPU. To exercise the endpoint, mint a voucher.
+- **Exhausted means consumed is at or over the allowance.** Consumption is recorded after a request, so `Consumed` can exceed `Allowance`. That overshoot is accepted under soft limits.
+- **Never logged:** voucher keys, admin keys, attempted bearer tokens, voucher ids or prefixes. Time plus source address is the handle for querying the database.
 
 ---
 
@@ -264,141 +100,51 @@ _COMPLETE_ — see [Voucher.cs](../src/LlmVoucherGateway.Domain/Vouchers/Voucher
 
 `Status`, `Lifetime` and `Consumed` are currently just data — nothing in the aggregate can answer whether a voucher may be spent.
 
-- `Voucher.CheckSpendability(IDateTimeProvider)` returns a `VoucherSpendability`: spendable, or the reason it is not. The clock is passed in rather than read, so the rule can be exercised at the instant either side of a boundary
-- Pure domain: unit tests, no database and no HTTP
-- **Precedence is `Revoked`, then `Expired`, then `Exhausted`**, ordered by how deliberate each reason is so the holder is told the most actionable one. A voucher that is both revoked and expired reports revoked
-- **Two boundaries, both pinned by tests.** Expired _at_ the expiry instant, not after it. Exhausted when consumption is _at or over_ the allowance, not over it — recording happens after a request, so `Consumed` can land above `Allowance` and "over" would let an exhausted voucher through
-- **Two transitions were pulled forward to make the rules reachable.** `Voucher.Issue` always produces `Active` with `Consumed = 0`, so without them a unit test could not build a revoked or exhausted voucher at all. `Revoke()` is idempotent; its endpoint and the reason it records stay in Milestone 8. `RecordConsumption(int)` rejects a negative total and accepts one above the allowance, because a soft budget's overshoot is evidence rather than an error; reading `usage` and calling it stays in Milestone 7
+An end-to-end checkpoint for what the integration tests can't see. The proof of concept rests on it.
 
-**Done when:** each reason is covered by a unit test at the boundary — expiring one tick either side, consumed equal to and over allowance.
+The client in use is a [Streamlit web UI](../src/LlmVoucherGateway.Web/app.py) rather than Aider at first. It calls the gateway from its Python server process, so CORS is not a factor. It reads `GATEWAY_BASE_URL`, which defaults to the `make run-api` address. `GET /v1/models` is now passed through behind the voucher filter, so a bad voucher shows up in the sidebar before a prompt is typed.
 
-### 6d. Middleware voucher branch: hash and look up
+Mint vouchers with `POST /admin/vouchers` (see [LlmVoucherGateway.Api.http](../src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.http)). There is no revoke endpoint until Milestone 8 and no consumption recording until Milestone 7, so set those states in the database directly: `src/LlmVoucherGateway.Api/.data/vouchers.db`, table `Vouchers`, columns `Status` (`'Active'` / `'Revoked'`), `Consumed`, `Allowance`, `Lifetime_ExpiresAt`, `Key_Prefix`.
 
-_COMPLETE_ — see [CredentialMiddleware.cs](../src/LlmVoucherGateway.Api/Middleware/CredentialMiddleware.cs) and [CredentialMiddlewareTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Credentials/CredentialMiddlewareTests.cs)
+- **6g.1** _COMPLETE_ — Web client base URL from config
+- **6g.2** _COMPLETE_ — `GET /v1/models` pass-through
+- **6g.3** _COMPLETE_ — Streamlit against the gateway with a valid voucher
+- **6g.4** Streamlit against the gateway with rejected vouchers:
+  - _COMPLETE_ — unknown
+  - TODO — expired (mint with an `expiresAt` a minute or two out, then wait)
+  - TODO — revoked
+  - TODO — exhausted. Watch this one: `403 insufficient_quota` is less common than `401`, and a client may render it poorly. If it does, revisit the status map rather than hiding the distinction
+- **6g.5** TODO — Preliminary Aider run: redo the Milestone 2 CSV task through the gateway, with the voucher in `OPENAI_API_KEY`. Repeat with a revoked voucher and confirm the failure is legible in the harness, not a crash or silence
 
-Fills in the branch 5a left open.
+Other open items:
 
-- Hashes the bearer token, queries by `Key_Hash`, attaches the credential when a row matches. Straight to the database on every request, no cache
-- **Resolution only, as with the admin branch.** A revoked or exhausted voucher still resolves: "who are you" and "may you" stay separate, which is what lets 6e own every rejection and its status code. A test revokes a voucher through the context and asserts it still resolves
-- **`VoucherDbContext` arrives as an `InvokeAsync` parameter, not through the constructor.** The middleware is built once and reused for every request; a scoped context injected into it would be held for the life of the process and shared across concurrent requests. `InvokeAsync` parameters are resolved per call from the request scope
-- **The credential carries the loaded aggregate, not its id.** It was already read to resolve the token and is still tracked by the request's context, so 6e can ask it for its state and Milestone 7 can record consumption against it — both without a second query. The cost is that `CallerCredential` now holds a domain entity rather than being a plain value
-- **Hashing moved to `VoucherKey.ComputeHash`**, public, with `VoucherKeyGenerator` delegating to it. Resolving a token means hashing it outside the domain, and one implementation is what keeps a token hashed at issuance and the same token hashed at request time from diverging. The domain's `InternalsVisibleTo` is gone with it
+- TODO: Capture the real `GET /v1/models` response into `api_documentation/`. The fake currently replays a labelled stand-in body.
+- TODO: Do an eyes-on check of voucher rows in `vouchers.db`.
+- TODO: The Streamlit frontend was vibe coded and needs review and cleanup.
 
-**Done when:** a request bearing an issued key resolves to a voucher credential, an unknown key resolves to none, and the probe test from 5a reports `voucher` for the first time.
-
-### 6e. Enforcement on `/v1/chat/completions`
-
-_COMPLETE_ — see [VoucherRequiredEndpointFilter.cs](../src/LlmVoucherGateway.Api/Credentials/VoucherRequiredEndpointFilter.cs) and [VoucherRequiredEndpointFilterTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Credentials/VoucherRequiredEndpointFilterTests.cs)
-
-Mirrors `AdminOnlyEndpointFilter`: an endpoint filter that requires a voucher credential, asks 6c whether it is spendable, and returns 6a's body with the mapped status. The endpoint stops being open here.
-
-- Pass case uses 6b's fake, so the suite stays GPU-free
-- Each rejection reason gets a test asserting both the status and the error body, **and that nothing was forwarded upstream.** The GPU is the expensive resource, so "was it refused" and "did it still occupy a GPU" are different questions; the fake records what it was asked to forward precisely so the second one can be asked
-- **An admin key does not pass.** It is not a voucher, and admitting it would leave an unmetered path through the one endpoint that costs GPU time — the thing this gateway exists to meter. An operator who wants to exercise the endpoint mints a voucher first. It returns `401` rather than `403`, because the error contract carries only the two statuses a client needs to tell apart
-- The unmapped case in the reason switch refuses rather than admits, so a reason added to the enum later cannot silently open the endpoint
-- **Expiry is tested by moving a clock, not by waiting.** `IDateTimeProvider` is replaced in the test host with a settable clock, so a test mints a voucher and then advances past its expiry
-- Revocation and consumption are applied through the `DbContext` in tests, since the revoke endpoint is Milestone 8 and consumption recording is Milestone 7
-
-**Done when:** a valid voucher reaches the inference client; unknown, revoked, expired and exhausted vouchers each get the right status and an OpenAI-shaped body.
-
-### 6f. Rejection logging
-
-_COMPLETE_ — see [VoucherRequiredEndpointFilter.cs](../src/LlmVoucherGateway.Api/Credentials/VoucherRequiredEndpointFilter.cs)
-
-Extends what 5d established for admin rejections.
-
-- `Warning` per rejection with method, path, source address and reason: `no voucher credential`, `voucher revoked`, `voucher expired`, `voucher allowance exhausted`. The reason is what distinguishes "wrong key" from "used it up" in a post-mortem
-- No voucher id or prefix, consistent with 5d — the time and the address are the handle for querying the database. The presented token is never logged
-- **Deliberately not covered by tests.** A log line is not a business rule, and the leak risk this would guard against is structural rather than behavioural: the line is built from method, path, address and a fixed reason string, none of which is a secret. Verified by hand instead — two rejected requests produced their lines, and the attempted token appeared nowhere in the output. The secret-in-log guard that does exist stays on issuance, where the response body holds the only copy of a key
-
-**Done when:** each rejection reason produces a line naming it.
-
-### 6g. Harness verification
-
-_WHERE WE LEFT OFF - NEEDS MANUAL VALIDATION ON WINDOWS BOX_
-
-This is a much needed e2e check point to catch anything that integration is not checking. The proof of concept rests on it working at this point.
-
-See: https://aider.chat/#getting-started
-
-**Requires live vLLM**, so this runs on the GPU box and is the only substep that cannot be done here.
-
-- Point Aider at the gateway with a valid voucher and redo the Milestone 2 task. The voucher goes in `OPENAI_API_KEY`, which is what the harness sends as the bearer token — mint one with `POST /admin/vouchers` first, since the Milestone 2 and 3 runs predate enforcement and used no credential at all
-- Repeat with a revoked voucher and confirm the failure is legible in the harness rather than a crash or silence
-- Watch for the `403` case specifically: a `401` is a shape harnesses expect, while `403 insufficient_quota` is less common and a client may render it poorly. If it does, that is an argument for revisiting the 6a status map, not for hiding the distinction
-
-**Done when (whole milestone):** a valid voucher works, an invalid one fails cleanly _in the harness_, not just in curl.
-
-UPDATE: ended up using a simple [Streamlit Web UI](../src/LlmVoucherGateway.Web/app.py), and it worked against the vllm url directly. 
-
-Next step is to point it at the gateway endpoint and check basic functionality.
-
-CORS is not a factor: Streamlit calls the gateway from its Python server process, not from the browser. It only needs network access to the gateway. We can add it to the docker-compose file when we're ready.
-
-After getting Streamlit to work we can also do preliminary test against aider.
-
-Substeps:
-
-- **6g.1** _COMPLETE_ — Web client points at the gateway: base URL from config instead of hardcoded `localhost:8000`. `GATEWAY_BASE_URL` in [app.py](../src/LlmVoucherGateway.Web/app.py), defaulting to the `make run-api` address
-- **6g.2** _COMPLETE_ — `GET /v1/models` pass-through: see [ModelsEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/ModelsEndpoint.cs) and [ModelsEndpointTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Inference/ModelsEndpointTests.cs)
-
-  - `IInferenceClient` grows `ListModelsAsync`, with no request body to relay — the path alone is the request. The response is passed back untouched, as on the chat path
-  - **The relay itself moved into `InferenceResponseRelay`**, shared by both endpoints. Milestone 3's unbuffered-streaming discipline — forward only status and Content-Type, disable buffering, copy the stream — is the part that is easy to get subtly wrong, and a second copy of it is a second place for it to rot
-  - **The route carries `VoucherRequiredEndpointFilter`, the same as chat completions.** The served model list is not public, and a client that lists models first turns this path into the credential check the user actually sees: a bad voucher is reported in the sidebar before a prompt is typed, rather than leaving a disabled input with no explanation. An exhausted voucher therefore cannot list models either, which is the intended answer
-  - **No capture for this path.** Milestone 1 curled `/v1/models` but committed nothing, so the fake replays a stand-in body rather than a capture, labelled as such in [FakeInferenceClient.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Inference/FakeInferenceClient.cs). Writing a guess into `api_documentation/` would dress it up as evidence. The relay parses nothing on this path, so the gateway's behaviour is testable without it — **6g.3 is on the GPU box and should capture the real response while it is there**
-- **6g.3** _COMPLETE_ — Streamlit against the gateway with a valid voucher (live vLLM)
-- **6g.4** Streamlit against the gateway with rejected voucher scenarios (live vLLM): 
-  - _COMPLETE_ — unknown, 
-  - (TODO) expired
-  - (TODO) revoked 
-  - (TODO) exhausted
-- **6g.5** Preliminary Aider run (live vLLM)
-
-TODO: Do an eyes on check of the voucher in the database now at src/LlmVoucherGateway.Api/.data/vouchers.db
-
-TODO: The streamlit frontend was vibe coded and needs eyes on; codebase probably needs some cleaning.
+**Done when (whole milestone):** a valid voucher works, and an invalid one fails cleanly _in the client_, not just in curl.
 
 ---
 
 ## 7. Consumption recording
 
-_IMPLEMENTED — PENDING LIVE vLLM VALIDATION_ — see [ConsumptionRecorder.cs](../src/LlmVoucherGateway.Api/Consumption/ConsumptionRecorder.cs), [InferenceResponseRelay.cs](../src/LlmVoucherGateway.Api/Inference/InferenceResponseRelay.cs) and [ConsumptionRecordingTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Inference/ConsumptionRecordingTests.cs)
-
-**As built:**
-
-- **The relay shows each chunk to an `IUsageObserver` after writing it**, chosen by Content-Type. The bytes are never altered or held back, and the unbuffered-streaming test still passes. `text/event-stream` keeps only the last `data:` line, skipping `[DONE]` and tolerating lines split across reads; anything else keeps a side copy of the body. Either way `usage.total_tokens` is parsed once, after the relay ends
-- **Recorded in a `finally`, with no cancellation token**, so a client that disconnects mid-stream is still charged the running total from the last chunk that got out. An unterminated trailing line is ignored as the fragment a disconnect leaves behind
-- **A recording failure is logged at `Error` and swallowed.** The response has already gone out by then, and an exception escaping would abort the connection before the response is properly ended. No voucher id or prefix in the line, as elsewhere
-- **The fake replays the forced-usage capture**, since that is what the gateway sees. The unforced capture backs only the test that a server started without the flag still serves requests, unmetered
-- Tested against the captures with known totals — 45 non-streaming, 60 streamed — asserting the stored `Consumed`: single requests, accumulation across turns, an overshoot that is kept in full and then refused with `403`, an upstream error and a usage-less stream recording nothing, a failing save still delivering the whole body, and a mid-stream disconnect
-
-**Known limitations, accepted:**
-
-- **Concurrent requests on one voucher can lose a charge.** Each request loads the voucher on entry and saves an absolute total, so two overlapping requests — two client windows, a harness making a side request, a retry while the original still runs — can overwrite each other. It under-meters and never blocks anyone; with soft budgets that is tolerable. The fix is a concurrency token on `Consumed` with reload-and-retry. Revisit with Milestone 10's concurrency numbers
-- **A stream that ends in an error event is unmetered.** If vLLM fails mid-generation, the last `data:` line is the error rather than a chunk with usage. Rare enough not to justify parsing every chunk
-
-**Left for the GPU box:** a real multi-turn session — Streamlit, then Aider — checking `Consumed` in the database after each turn against the `usage` vLLM reported, plus a request abandoned mid-stream.
-
-- Read `usage.total_tokens` from the response, decrement the voucher. `total_tokens` is already input + output; summing it with `prompt_tokens` double-bills the prompt
-- Streaming: **answered — vLLM can force it server-side.** `--enable-force-include-usage` is set in `docker-compose.llm.yml`, so no injection at the API and no `stream_options` dependency on the client. It also puts a running count on every chunk, so the gateway can relay bytes untouched and parse only the last `data:` line it saw, once, after the stream ends. See [streaming-usage.md](../api_documentation/chat-completions/streaming-usage.md)
-- The flag must be set wherever the pilot's vLLM runs, not just in the dev compose file; without it streaming requests meter as nothing
+- Read `usage.total_tokens` from the response and add it to the voucher's consumption. `total_tokens` already includes the prompt; adding `prompt_tokens` again would double-bill it
+- Streaming: vLLM forces usage server-side with `--enable-force-include-usage` (set in `docker-compose.llm.yml`). Every chunk carries a running count, so the gateway relays bytes untouched and parses only the last `data:` line after the stream ends. See [streaming-response-forced-usage.md](../api_documentation/chat-completions/streaming-response-forced-usage.md)
+- The flag must be set wherever the pilot's vLLM runs. Without it, streaming requests meter as nothing
 - Soft limits: check on entry, record after, overshoot accepted
-- Recording failure must not fail the request
+- A recording failure must not fail the request
+- Use `Voucher.RecordConsumption` against the aggregate already on the resolved credential
 
-**Depends on:** the forced-usage capture (`streaming-response-usage-requested-server.sse`).
+**Done when:** consumption tracks across a real multi-turn agentic session. Add a test that runs a known-token request and asserts the recorded amount, since this is the first milestone whose correctness isn't obvious from using it.
 
-**Done when:** consumption tracks across a real multi-turn agentic session.
-
-**Fallback:** if metering on streamed output proves fragile, meter on input tokens only or on request count. Less accurate, no response parsing, and enough for a classroom with soft budgets. Don't get stuck here.
-
-**Note:** this is the first milestone whose correctness isn't obvious from using it. Worth a test that runs a known-token request and asserts the decrement.
+**Fallback:** if metering streamed output proves fragile, meter on input tokens or request count. Don't get stuck here.
 
 ---
 
 ## 8. Revocation, expiry, admin operations
 
-- `POST /admin/vouchers/{id}/revoke` — status flag with reason
-- Expiry checked at request time
+- `POST /admin/vouchers/{id}/revoke` — status flag with reason (`Voucher.Revoke()` exists; the reason does not yet)
+- Expiry checked at request time (already enforced by 6e)
 - `GET /admin/sections/{id}/vouchers` — status and consumption
 - Issuance alert (email or webhook)
 
@@ -408,35 +154,33 @@ _IMPLEMENTED — PENDING LIVE vLLM VALIDATION_ — see [ConsumptionRecorder.cs](
 
 ## 9. Operational readiness
 
-The cross-cutting work, made concrete. Deliberately last of the build milestones — none of it was a concern while proving the request path.
-
 - Structured logging with a correlation ID per request
-- **`app.UseSerilogRequestLogging()`** — one line per HTTP request with method, path, status and duration. This is the backbone of any post-mortem, because it covers every route uniformly rather than only what was logged by hand, and it is the only thing that records a request the pipeline rejected before any endpoint ran. The client address is not included by default and needs a small enricher
-- **A rolling file sink with retention**, on the same mounted volume as the SQLite database: console alone dies with the container, so a leak discovered on Tuesday has nothing to look back at. Daily roll with 14–30 days retained covers a term. Configuration only, no code
-- **Forwarded headers belong here too.** Once Caddy is in front, every logged address is the proxy's unless `UseForwardedHeaders` is configured, which silently empties the one field abuse analysis depends on
-- **Never logged, at any level:** voucher keys, admin keys, `Authorization` headers, and request or response bodies. Prompt bodies are the easy mistake — logging them would be both a volume problem and the end of this project's claim to hold no student content
-- `/health` — checks vLLM reachability, not just that the API is up. Endpoint from configuration, not hardcoded.
+- `app.UseSerilogRequestLogging()` — one line per HTTP request, the only record of a request rejected before an endpoint ran. The client address needs a small enricher
+- Rolling file sink with 14–30 days retention, on the same mounted volume as the SQLite database. Console logs die with the container
+- `UseForwardedHeaders` once Caddy is in front, or every logged address becomes the proxy's
+- **Never logged:** keys, `Authorization` headers, request or response bodies. Logging prompt bodies would end the project's claim to hold no student content
+- `/health` — checks vLLM reachability, endpoint from configuration
 - Configuration and secrets outside source control
 - Global exception handling that returns OpenAI-shaped errors
-- Caddy in front as reverse proxy for easy certificate handling
+- Caddy as reverse proxy for certificates
 - Restart policy, and a documented "it's down, what now" procedure
 
 **Done when:** you can restart the box and it comes back without intervention.
 
-**Risk, accepted:** Caddy is the most likely thing to break streaming, and it arrives here rather than beside Milestone 3 — so the streaming proof from Milestone 3 doesn't cover the production path. Re-run Milestone 3's timestamp comparison through the proxy. If it buffers and the fix isn't quick, fall back to Milestone 7's simpler metering; this isn't a project where that tradeoff is expensive.
+**Risk, accepted:** Caddy is the most likely thing to break streaming. Re-run Milestone 3's timing comparison through the proxy. If it buffers and the fix isn't quick, fall back to Milestone 7's simpler metering.
 
 ---
 
 ## 10. Real model and load test
 
-Everything above runs on the 0.5B model on a dev-spec box. Now find out what it does under actual conditions. Requires live vLLM on real hardware.
+Requires live vLLM on real hardware.
 
-- Swap to a real coder model on real hardware (colleague has a GX10 — arm64, so verify container images)
-- Script N concurrent agentic sessions — not chat requests, full tool loops with long contexts
-- Measure: time to first token, throughput, where it degrades
+- Swap to a real coder model (a colleague has a GX10, which is arm64, so verify the container images)
+- Script N concurrent agentic sessions: full tool loops with long contexts, not chat requests
+- Measure time to first token, throughput, and where it degrades
 - Settle model, quantization, `--max-model-len`, `--gpu-memory-utilization`
 - Re-pull `/openapi.json` if the vLLM version changed, and diff it against the committed copy
-- Revisit the Milestone 6 no-cache decision and any concurrency caps against real numbers
+- Revisit the no-cache decision and any concurrency caps against real numbers
 
 **Done when:** you have a defensible concurrency number for the hardware proposal.
 
@@ -444,26 +188,8 @@ Everything above runs on the 0.5B model on a dev-spec box. Now find out what it 
 
 ## 11. Student rollout
 
-- Small scale test with one class, where it doesn't matter if it fails
+- Small-scale test with one class, where it doesn't matter if it fails
 - Setup docs per OS, and a `.env` template
-- The `openai/` prefix gotcha, and the `OPENAI_API_KEY` collision
+- The `openai/` model prefix gotcha, and the `OPENAI_API_KEY` collision
 
 **Done when:** a student with no setup is running in under 15 minutes without your help.
-
----
-
-## Revision notes
-
-Changes from the first draft of this roadmap, kept for context:
-
-- **Old Milestone 1b (development environment) dissolved.** Config-driven base URL moved into Milestone 3; the vLLM stand-in became a fake `IInferenceClient` in Milestone 6. Dropped entirely: DTOs generated from `openapi.json` (the passthrough needs none, and Milestone 7 needs a handful of `usage` fields) and the CI schema-drift check (the pinned image tag is the control). vLLM is a dependency we consume, not a schema we own.
-- **Persistence promoted to its own milestone (4).** It was invisible work hiding inside voucher issuance.
-- **Milestone 5 returns a JSON array and does not require persistence.** The earlier bar — return plaintext, done when you have a distributable CSV — mixed the one-time secret with a file format and tied minting to the database. The secret is the `key` field on each object. Storing the hash waits for Milestone 4; looking it up waits for Milestone 6.
-- **Cache removed from voucher validation.** Premature at this scale, and it bought a revocation delay.
-- **Credential middleware written once, in Milestone 5a.** Previously split between an admin check in issuance and a general resolver in validation.
-- **Persistence switched from Postgres to SQLite, and stopped being optional.** The original choice was recorded as "Postgres and EF Core" with a container in `docker-compose.yml`, but nothing was built against it. One table for under 20 users does not need a server, and a single container is the real win; the reasoning, the backup caveat, and the rejected Redis alternative are written into Milestone 4. The compose file's `postgres` service was removed.
-- **Admin authorization moved out of 5a, and now follows issuance as 5c.** 5a's bar named "an admin-only route," which is the thing 5b creates; a requirement has nothing to attach to before then. Pairing it with the endpoint in one step was the first fix, and splitting it to sit _after_ the endpoint was the second: an unprotected endpoint can be driven with `curl` and asserted on its own, so it makes a smaller increment than endpoint-plus-guard together. Logging became 5d. The original note that the middleware must precede the endpoint still holds — resolution is 5a — but "no open minting route at any point" was relaxed to "no open minting route outside the dev loop."
-- **Milestone 6 split into 6a–6g.** It was five bullets spanning a wire format, a test double, a domain rule, a lookup and an enforcement point, under a single bar that could only be checked with a harness on the GPU box. The substeps are ordered so each one is verifiable when it lands, with the three independent ones first; the harness check stays last because it is the only part that needs live vLLM. `403` was settled over `429` for an exhausted allowance there.
-- **Milestone 5 split into 5a/5b/5c.** It was three deliverables under one bar: the middleware, the endpoint, and the logging. The middleware is a prerequisite for the endpoint and is the thing Milestone 6 extends, so it gets its own done-when rather than being proven incidentally by a successful mint.
-- **Milestone 2's bar lowered to protocol, not edit quality.** A 0.5B model failing an agentic edit says nothing about the plumbing.
-- **No feasibility spike.** Hardware access is available and the shape is understood; pulling Milestone 10 forward would answer a question that isn't open.
