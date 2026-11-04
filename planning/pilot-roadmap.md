@@ -249,7 +249,7 @@ _COMPLETE_ — see [FakeInferenceClient.cs](../tests/LlmVoucherGateway.Api.Integ
 
 A stand-in replaying the Milestone 1 captures, registered by the test factory in place of `VllmInferenceClient`. A class, not a stub server — nothing here points a live harness at a GPU-less box.
 
-- Returns [non-streaming-response.json](../api_documentation/chat-completions/non-streaming-response.json), or the SSE stream rebuilt from the `data:` lines of [streaming-response.md](../api_documentation/chat-completions/streaming-response.md), chosen by whether the forwarded body sets `"stream": true`
+- Returns [non-streaming-response.json](../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/non-streaming-response.json), or the captured SSE stream [streaming-response-usage-requested-server.sse](../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/streaming-response-usage-requested-server.sse), chosen by whether the forwarded body sets `"stream": true`
 - **The captures are linked into the test project as content**, not copied into it, so a re-capture cannot leave the tests asserting a stale response shape
 - The fake records the bodies it was asked to forward. That is what lets 6e assert a rejected request never reached the inference server at all, rather than only checking the status a caller saw
 - First tests of `/v1/chat/completions`: the response relays byte for byte, the request body is forwarded unchanged, and a streamed response ends in `data: [DONE]` — the terminator whose absence makes a harness hang rather than fail
@@ -380,12 +380,12 @@ _IMPLEMENTED — PENDING LIVE vLLM VALIDATION_ — see [ConsumptionRecorder.cs](
 **Left for the GPU box:** a real multi-turn session — Streamlit, then Aider — checking `Consumed` in the database after each turn against the `usage` vLLM reported, plus a request abandoned mid-stream.
 
 - Read `usage.total_tokens` from the response, decrement the voucher. `total_tokens` is already input + output; summing it with `prompt_tokens` double-bills the prompt
-- Streaming: **answered — vLLM can force it server-side.** `--enable-force-include-usage` is set in `docker-compose.llm.yml`, so no injection at the API and no `stream_options` dependency on the client. It also puts a running count on every chunk, so the gateway can relay bytes untouched and parse only the last `data:` line it saw, once, after the stream ends. See [streaming-response-forced-usage.md](../api_documentation/chat-completions/streaming-response-forced-usage.md)
+- Streaming: **answered — vLLM can force it server-side.** `--enable-force-include-usage` is set in `docker-compose.llm.yml`, so no injection at the API and no `stream_options` dependency on the client. It also puts a running count on every chunk, so the gateway can relay bytes untouched and parse only the last `data:` line it saw, once, after the stream ends. See [streaming-usage.md](../api_documentation/chat-completions/streaming-usage.md)
 - The flag must be set wherever the pilot's vLLM runs, not just in the dev compose file; without it streaming requests meter as nothing
 - Soft limits: check on entry, record after, overshoot accepted
 - Recording failure must not fail the request
 
-**Depends on:** the forced-usage capture (`streaming-response-forced-usage.md`).
+**Depends on:** the forced-usage capture (`streaming-response-usage-requested-server.sse`).
 
 **Done when:** consumption tracks across a real multi-turn agentic session.
 

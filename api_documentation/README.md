@@ -20,10 +20,8 @@ The flag changes the streaming response shape, so the two streaming captures fro
 | Concern | Path | Notes |
 |---|---|---|
 | OpenAPI schema | [openapi.json](openapi.json) | Raw `/openapi.json` from the running instance. Re-pull and diff in Milestone 10 if the vLLM version changes. |
-| Non-streaming chat completion | [chat-completions/non-streaming-response.json](chat-completions/non-streaming-response.json) | Baseline response shape, including `usage`. |
-| Streaming chat completion | [chat-completions/streaming-response.md](chat-completions/streaming-response.md) | Flag off. Raw SSE chunks. `finish_reason` lands on the final content chunk; no `usage` at all. |
-| Streaming with usage | [chat-completions/streaming-response-with-usage.md](chat-completions/streaming-response-with-usage.md) | Flag off, client opts in. `usage` arrives in its own trailing chunk with empty `choices`, after the `finish_reason: "stop"` chunk. |
-| **Streaming, server-forced usage** | [chat-completions/streaming-response-forced-usage.md](chat-completions/streaming-response-forced-usage.md) | **What the gateway actually sees.** Feeds Milestone 7. `usage` on every chunk as a running count, with no client cooperation. Excerpted here; the full stream is the integration tests' fixture at [Fixtures/streaming-response-usage-requested-server.sse](../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/streaming-response-usage-requested-server.sse). |
+| Chat completion responses | [Fixtures/](../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/README.md) | The non-streaming response and all three streaming shapes, raw. The integration tests replay these, so they are the single source of truth. |
+| Token usage | [chat-completions/streaming-usage.md](chat-completions/streaming-usage.md) | How `usage` appears in each shape, which switch produces which, and what the metering loop depends on. |
 | Error: unknown model | [errors/unknown-model.json](errors/unknown-model.json) | HTTP 404, `type: "NotFoundError"`. |
 | Error: context-length overflow | [errors/context-length-overflow.json](errors/context-length-overflow.json) | HTTP 400, `type: "BadRequestError"`. Forced via an out-of-range `max_tokens`. |
 | Error: malformed request | [errors/malformed-request.json](errors/malformed-request.json) | HTTP 400, `type: "Bad Request"`. Two variants: invalid JSON syntax, and schema-validation failure. |

@@ -25,7 +25,7 @@ practice.
 
 For output capture:
 
-_Settled 2026-10-28 — see [streaming-response-forced-usage.md](../api_documentation/chat-completions/streaming-response-forced-usage.md)._
+_Settled 2026-10-28 — see [streaming-usage.md](../api_documentation/chat-completions/streaming-usage.md)._
 
 The gateway relays the client's request upstream untouched (no `stream_options`
 injection, so the opaque passthrough survives) and relays chunks back as they arrive.
