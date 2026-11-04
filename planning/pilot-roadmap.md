@@ -151,6 +151,14 @@ _In Progress - awaiting dev tests_
 
 ---
 
+### 7.5 Misc cleanup and checks
+
+Cleanup Program.cs - break DI into files
+
+Last used timestamp on voucher? Or just use logging? Are we tracking this anywhere?
+
+---
+
 ## 8. Revocation, expiry, admin operations
 
 - `POST /admin/vouchers/{id}/revoke` — status flag with reason (`Voucher.Revoke()` exists; the reason does not yet)
