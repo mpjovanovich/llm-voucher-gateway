@@ -15,7 +15,7 @@ public class TokenUsageTests
     [Fact]
     public void ReadTotalTokens_FromFinalStreamedChunk_ReturnsRunningTotal()
     {
-        string lastChunk = CapturedResponses.StreamingBody()
+        string lastChunk = CapturedResponses.StreamingBodyWithUsage()
             .Split("\n\n", StringSplitOptions.RemoveEmptyEntries)
             .Last(line => line != "data: [DONE]")["data: ".Length..];
 

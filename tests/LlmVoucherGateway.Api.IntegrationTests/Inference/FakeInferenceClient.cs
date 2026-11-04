@@ -64,7 +64,7 @@ internal sealed class FakeInferenceClient : IInferenceClient
         bool streaming = IsStreamingRequest(request);
 
         string capture = streaming
-            ? CapturedResponses.StreamingBody()
+            ? CapturedResponses.StreamingBodyWithUsage()
             : CapturedResponses.NonStreamingBody();
 
         Stream body = streaming && StreamingBody is not null

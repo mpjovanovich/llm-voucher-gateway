@@ -10,7 +10,7 @@ public class StreamedUsageObserverTests
     {
         StreamedUsageObserver observer = new();
 
-        observer.Observe(Encoding.UTF8.GetBytes(CapturedResponses.StreamingBody()));
+        observer.Observe(Encoding.UTF8.GetBytes(CapturedResponses.StreamingBodyWithUsage()));
 
         Assert.Equal(60, observer.ReadTotalTokens());
     }
@@ -20,7 +20,7 @@ public class StreamedUsageObserverTests
     {
         StreamedUsageObserver observer = new();
 
-        foreach (byte b in Encoding.UTF8.GetBytes(CapturedResponses.StreamingBody()))
+        foreach (byte b in Encoding.UTF8.GetBytes(CapturedResponses.StreamingBodyWithUsage()))
         {
             observer.Observe([b]);
         }
@@ -31,7 +31,7 @@ public class StreamedUsageObserverTests
     [Fact]
     public void ReadTotalTokens_WhenStreamIsCutMidLine_ReturnsLastCompleteRunningTotal()
     {
-        string body = CapturedResponses.StreamingBody();
+        string body = CapturedResponses.StreamingBodyWithUsage();
         int cutAfter = body.IndexOf("\"total_tokens\":45", StringComparison.Ordinal);
         int nextEvent = body.IndexOf("\n\n", cutAfter, StringComparison.Ordinal) + 2;
 
@@ -47,7 +47,7 @@ public class StreamedUsageObserverTests
     {
         StreamedUsageObserver observer = new();
 
-        observer.Observe(Encoding.UTF8.GetBytes(CapturedResponses.StreamingBody().Replace("\n", "\r\n", StringComparison.Ordinal)));
+        observer.Observe(Encoding.UTF8.GetBytes(CapturedResponses.StreamingBodyWithUsage().Replace("\n", "\r\n", StringComparison.Ordinal)));
 
         Assert.Equal(60, observer.ReadTotalTokens());
     }

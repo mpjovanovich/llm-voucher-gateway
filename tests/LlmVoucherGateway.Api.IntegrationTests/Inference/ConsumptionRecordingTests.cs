@@ -111,12 +111,12 @@ public class ConsumptionRecordingTests
         factory.InferenceClient.ChatCompletionResponse = new ScriptedResponse(
             HttpStatusCode.OK,
             "text/event-stream",
-            CapturedResponses.UnforcedStreamingBody()
+            CapturedResponses.StreamingBodyWithNoUsage()
         );
 
         string body = await PostAsync(client, StreamingRequest);
 
-        Assert.Equal(CapturedResponses.UnforcedStreamingBody(), body);
+        Assert.Equal(CapturedResponses.StreamingBodyWithNoUsage(), body);
         Assert.Equal(0, await ReadConsumedAsync(factory));
     }
 
@@ -133,7 +133,7 @@ public class ConsumptionRecordingTests
         string body = await PostAsync(client, stream ? StreamingRequest : NonStreamingRequest);
 
         Assert.Equal(
-            stream ? CapturedResponses.StreamingBody() : CapturedResponses.NonStreamingBody(),
+            stream ? CapturedResponses.StreamingBodyWithUsage() : CapturedResponses.NonStreamingBody(),
             body
         );
         Assert.Equal(0, await ReadConsumedAsync(factory));

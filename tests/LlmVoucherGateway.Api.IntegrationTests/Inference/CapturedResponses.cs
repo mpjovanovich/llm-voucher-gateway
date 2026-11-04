@@ -26,13 +26,14 @@ internal static class CapturedResponses
     /// The forced-usage capture, because the gateway's vLLM always runs with
     /// <c>--enable-force-include-usage</c>: every chunk carries a running token count.
     /// </summary>
-    public static string StreamingBody() => Read("streaming-response-forced-usage.sse");
+    public static string StreamingBodyWithUsage() => Read("streaming-response-usage-requested-server.sse");
 
     /// <summary>
     /// What a vLLM started without <c>--enable-force-include-usage</c> streams: no
     /// <c>usage</c> on any chunk.
     /// </summary>
-    public static string UnforcedStreamingBody() => Read("streaming-response-unforced.sse");
+    public static string StreamingBodyWithNoUsage() =>
+        Read("streaming-response-usage-not-requested.sse");
 
     private static string Read(string fileName) =>
         File.ReadAllText(Path.Combine(FixtureDirectory, fileName));
