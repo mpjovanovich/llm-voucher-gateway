@@ -116,19 +116,13 @@ Mint vouchers with `POST /admin/vouchers` (see [LlmVoucherGateway.Api.http](../s
   - TODO — exhausted. Watch this one: `403 insufficient_quota` is less common than `401`, and a client may render it poorly. If it does, revisit the status map rather than hiding the distinction
 - **6g.5** TODO — Preliminary Aider run: redo the Milestone 2 CSV task through the gateway, with the voucher in `OPENAI_API_KEY`. Repeat with a revoked voucher and confirm the failure is legible in the harness, not a crash or silence
 
-Other open items:
-
-- TODO: Capture the real `GET /v1/models` response into `api_documentation/`. The fake currently replays a labelled stand-in body.
-- TODO: Do an eyes-on check of voucher rows in `vouchers.db`.
-- TODO: The Streamlit frontend was vibe coded and needs review and cleanup.
-
 **Done when (whole milestone):** a valid voucher works, and an invalid one fails cleanly _in the client_, not just in curl.
 
 ---
 
 ## 7. Consumption recording
 
-_In Progress - awaiting dev tests_
+_Complete_
 
 - Read `usage.total_tokens` from the response and add it to the voucher's consumption. `total_tokens` already includes the prompt; adding `prompt_tokens` again would double-bill it
 - Streaming: vLLM forces usage server-side with `--enable-force-include-usage` (set in `docker-compose.llm.yml`). Every chunk carries a running count, so the gateway relays bytes untouched and parses only the last `data:` line after the stream ends. See [streaming-response-forced-usage.md](../api_documentation/chat-completions/streaming-response-forced-usage.md)
@@ -143,35 +137,22 @@ _In Progress - awaiting dev tests_
 
 ### Develeoper Tests
 
-**Left for the GPU box:** a real multi-turn session, Streamlit then Aider, checking `Consumed` in the database after each turn against the `usage` vLLM reported, plus a request abandoned mid-stream.
-
 **Done when:** consumption tracks across a real multi-turn agentic session.
 
-**Fallback:** if metering streamed output proves fragile, meter on input tokens or request count. Don't get stuck here.
+---
+
+### 7.5 Misc cleanup and live developer checks
+
+- Cleanup Program.cs - break DI into files
+- The Streamlit frontend was vibe coded and needs review and cleanup.
+- Do an eyes-on check of voucher rows in `vouchers.db`, checking consumption updates.
+- Last used timestamp on voucher? Or just use logging? Are we tracking this anywhere?
 
 ---
 
-### 7.5 Misc cleanup and checks
+## 8. Operational readiness
 
-Cleanup Program.cs - break DI into files
-
-Last used timestamp on voucher? Or just use logging? Are we tracking this anywhere?
-
----
-
-## 8. Revocation, expiry, admin operations
-
-- `POST /admin/vouchers/{id}/revoke` — status flag with reason (`Voucher.Revoke()` exists; the reason does not yet)
-- Expiry checked at request time (already enforced by 6e)
-- `GET /admin/sections/{id}/vouchers` — status and consumption
-- Issuance alert (email or webhook)
-
-**Done when:** the withdrawal use case works end to end, and revocation takes effect on the next request.
-
----
-
-## 9. Operational readiness
-
+- Determine and document a way to access and backup the database.
 - Structured logging with a correlation ID per request
 - `app.UseSerilogRequestLogging()` — one line per HTTP request, the only record of a request rejected before an endpoint ran. The client address needs a small enricher
 - Rolling file sink with 14–30 days retention, on the same mounted volume as the SQLite database. Console logs die with the container
@@ -189,6 +170,15 @@ Last used timestamp on voucher? Or just use logging? Are we tracking this anywhe
 
 ---
 
+## 9. Revocation, expiry, admin operations
+
+- `POST /admin/vouchers/{id}/revoke` — status flag with reason (`Voucher.Revoke()` exists; the reason does not yet)
+- Expiry checked at request time (already enforced by 6e)
+- `GET /admin/sections/{id}/vouchers` — status and consumption
+- Issuance alert (email or webhook)
+
+**Done when:** the withdrawal use case works end to end, and revocation takes effect on the next request.
+
 ## 10. Real model and load test
 
 Requires live vLLM on real hardware.
@@ -201,6 +191,13 @@ Requires live vLLM on real hardware.
 - Revisit the no-cache decision and any concurrency caps against real numbers
 
 **Done when:** you have a defensible concurrency number for the hardware proposal.
+
+Small scale hardware confirmed:
+
+```
+GeForce RTX 5060 8GB vRAM
+64GB RAM on host machine
+```
 
 ---
 
