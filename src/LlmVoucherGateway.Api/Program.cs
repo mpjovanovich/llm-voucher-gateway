@@ -1,110 +1,35 @@
+using LlmVoucherGateway.Api.Configuration;
 using LlmVoucherGateway.Api.Consumption;
-using LlmVoucherGateway.Api.Credentials;
 using LlmVoucherGateway.Api.Endpoints;
 using LlmVoucherGateway.Api.ExceptionHandlers;
 using LlmVoucherGateway.Api.Inference;
 using LlmVoucherGateway.Api.Middleware;
+using LlmVoucherGateway.Api.Observability;
 using LlmVoucherGateway.Api.Persistence;
 using LlmVoucherGateway.Api.Time;
 using LlmVoucherGateway.Domain.Abstractions;
-using Serilog;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-// Serilog replaces the default providers rather than sitting beside them, so each line
-// is written once and in one format. Configuration lives in appsettings.
-builder.Logging.ClearProviders();
-builder.Services.AddSerilog(
-    (services, loggerConfiguration) =>
-        loggerConfiguration
-            .ReadFrom.Configuration(builder.Configuration)
-            // Lets a sink registered in the container contribute alongside the configured
-            // ones, which is how the tests capture output to assert no secret reaches a log.
-            .ReadFrom.Services(services),
-    // Each host keeps its own logger instead of assigning Serilog's static Log.Logger.
-    // Nothing here logs through that static API, and sharing it means the first host
-    // created in a process owns logging for every host after it — which inside a test
-    // run sends one host's output to another host's sinks.
-    preserveStaticLogger: true
-);
+builder.AddSerilogLogging();
 
-// TODO: Extract the DI registrations into theor own classes if this starts to turn this Program file into a mess.
-builder.Services
-    .AddOptions<AdminOptions>()
-    .BindConfiguration(AdminOptions.SectionName)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+builder.Services.AddGatewayOptions();
 
-builder.Services
-    .AddOptions<InferenceOptions>()
-    .BindConfiguration(InferenceOptions.SectionName)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+builder.Services.AddPersistence();
 
-builder.Services
-    .AddOptions<VoucherIssuanceOptions>()
-    .BindConfiguration(VoucherIssuanceOptions.SectionName)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services
-    .AddOptions<DatabaseOptions>()
-    .BindConfiguration(DatabaseOptions.SectionName)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services.AddDbContext<VoucherDbContext>((serviceProvider, dbContextOptions) =>
-{
-    DatabaseOptions databaseOptions = serviceProvider
-        .GetRequiredService<IOptions<DatabaseOptions>>().Value;
-
-    // Built rather than concatenated so a path containing a space or a semicolon
-    // cannot alter the rest of the connection string.
-    SqliteConnectionStringBuilder connectionString = new()
-    {
-        DataSource = databaseOptions.Path,
-    };
-
-    dbContextOptions.UseSqlite(connectionString.ConnectionString);
-});
+builder.Services.AddInference();
 
 builder.Services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 
 builder.Services.AddScoped<ConsumptionRecorder>();
 
 builder.Services.AddProblemDetails();
+
 builder.Services.AddExceptionHandler<ExceptionHandler>();
-
-builder.Services.AddHttpClient<IInferenceClient, VllmInferenceClient>((serviceProvider, httpClient) =>
-{
-    InferenceOptions options = serviceProvider
-        .GetRequiredService<IOptions<InferenceOptions>>().Value;
-
-    httpClient.BaseAddress = new Uri(options.BaseUrl);
-
-    // HttpClient's 100-second default would cancel long generations mid-stream and
-    // surface as a TaskCanceledException that reads like a network fault. Request
-    // lifetime is bounded by the caller's own cancellation instead.
-    httpClient.Timeout = Timeout.InfiniteTimeSpan;
-});
 
 WebApplication app = builder.Build();
 
-using (IServiceScope scope = app.Services.CreateScope())
-{
-    DatabaseOptions databaseOptions = scope.ServiceProvider
-        .GetRequiredService<IOptions<DatabaseOptions>>().Value;
-
-    // SQLite creates the database file on demand but not the directory holding it.
-    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(databaseOptions.Path))!);
-
-    // Applied on boot so the container is self-sufficient. This is right for one
-    // instance and wrong for two, because both would race to apply the same migration.
-    await scope.ServiceProvider.GetRequiredService<VoucherDbContext>().Database.MigrateAsync();
-}
+await app.MigrateDatabaseAsync();
 
 // First in the pipeline so it covers everything downstream, including the
 // credential middleware.

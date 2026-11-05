@@ -129,7 +129,7 @@ _Complete_
 - **Concurrent requests on one voucher can lose a charge.** Each request loads the voucher on entry and saves an absolute total, so overlapping requests (two client windows, a harness side request, a retry while the original runs) can overwrite each other. It under-meters and never blocks anyone, which soft budgets tolerate. The fix is a concurrency token on `Consumed` with reload-and-retry. Revisit with Milestone 10's concurrency numbers
 - **A stream that ends in an error event is unmetered.** If vLLM fails mid-generation, the last `data:` line is the error rather than a chunk with usage. Rare enough not to justify parsing every chunk
 
-### Develeoper Tests
+### Developer Tests
 
 **Done when:** consumption tracks across a real multi-turn agentic session.
 
@@ -147,11 +147,18 @@ _Complete_
 
 - _COMPLETE_ — Do an eyes-on check of voucher rows in `vouchers.db`, checking consumption updates.
 
-- Last used timestamp on voucher? Or just use logging? Are we tracking this anywhere?
-
-- Cleanup Program.cs - break DI into files
+- _COMPLETE_ - Cleanup Program.cs - break DI into files
 
 - The Streamlit frontend was vibe coded and needs review and cleanup.
+
+- Add "LastRequestedAt" field to Vouchers to record when a voucher was tried to be used (time of request).
+
+## 7.55 - Add LastRequestedAt field to Vouchers
+
+1. Voucher.cs — add public DateTimeOffset? LastRequestedAt { get; private set; } and RecordRequest(DateTimeOffset at). Nullable so never requested is a real state rather than a sentinel date; that's the "was this ever even used?" answer.
+2. VoucherRequiredEndpointFilter.cs — take VoucherDbContext, call RecordRequest + SaveChangesAsync once the credential resolves to a voucher, before the spendability check, so admitted and rejected requests both stamp. Wrap it in the same swallow-and-log as ConsumptionRecorder.cs:36-45 — a database hiccup must not turn a spendable voucher into a rejection.
+3. Migration via dotnet ef migrations add, matching the existing Migrations/ pattern. No OwnsOne mapping needed; it's a plain column.
+4. Unit tests in VoucherTests (null on issue, set on request); integration test that a rejected request still stamps.
 
 ### 7.6 Sanity check how it's going to work on a VPS
 

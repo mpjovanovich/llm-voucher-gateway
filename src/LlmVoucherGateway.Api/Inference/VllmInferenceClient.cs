@@ -7,7 +7,8 @@ namespace LlmVoucherGateway.Api.Inference;
 /// </summary>
 /// <remarks>
 /// Registered as a typed client; its <see cref="HttpClient"/> is configured in
-/// <c>Program.cs</c> with the upstream base address and an infinite timeout.
+/// <see cref="InferenceRegistration"/> with the upstream base address and an
+/// infinite timeout.
 /// </remarks>
 internal sealed class VllmInferenceClient : IInferenceClient
 {
