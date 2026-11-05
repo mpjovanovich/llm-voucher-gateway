@@ -137,13 +137,13 @@ _Complete_
 
 ### 7.5 Misc cleanup and live developer checks
 
-- Check that the admin key for vouchers is working (case where we didn't mint one)
-- Do an eyes-on check of voucher rows in `vouchers.db`, checking consumption updates.
 - Streamlit against the gateway with rejected vouchers:
   - _COMPLETE_ — unknown
-  - TODO — expired (mint with an `expiresAt` a minute or two out, then wait)
-  - TODO — revoked
-  - TODO — exhausted. Watch this one: `403 insufficient_quota` is less common than `401`, and a client may render it poorly. If it does, revisit the status map rather than hiding the distinction
+  - _COMPLETE_ — exhausted
+  - _COMPLETE_ — expired (mint with an `expiresAt` a minute or two out, then wait)
+  - TODO — revoked (can't test yet, no endpoint; need a way to update sqlite database easily)
+- Check that the admin key for vouchers is working (case where we didn't mint one)
+- Do an eyes-on check of voucher rows in `vouchers.db`, checking consumption updates.
 - Last used timestamp on voucher? Or just use logging? Are we tracking this anywhere?
 - Cleanup Program.cs - break DI into files
 - The Streamlit frontend was vibe coded and needs review and cleanup.
@@ -155,7 +155,6 @@ _Complete_
   - sqlite-web with ssh to connect in case we need to do ad-hoc queries
 - At what point do we start building container images?
   - Dev workflow only needs container for vLLM
-
 
 ---
 

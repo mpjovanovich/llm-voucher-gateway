@@ -48,19 +48,25 @@ run-web: $(VENV)/.installed
 # These are mostly work-in-progress scripts to see what's running.
 # We don't have a lot of dev infrastructure in place.
 
-# Completion through the gateway: make api-check-completion key=<voucher-key>
-# Require a voucher to be minted first.
+# Requires a voucher to be minted first.
+# make api-check-completion key=<voucher-key>
 api-check-completion:
 	curl -sS -w '\n' http://localhost:5131/v1/chat/completions \
 		-H "Authorization: Bearer $(key)" \
 		-H "Content-Type: application/json" \
 		-d '{"model":"Qwen/Qwen2.5-0.5B-Instruct","messages":[{"role":"user","content":"Say hello in one sentence."}]}'
 
+count ?= 1
+allowance ?= 10000
+days ?= 30
+
+# make api-mint-voucher (uses defaults above)
+# make api-mint-voucher count=1 allowance=10000 days=30
 api-mint-voucher:
 	curl -sS -w '\n' http://localhost:5131/admin/vouchers \
 		-H "Authorization: Bearer dev-admin-key" \
 		-H "Content-Type: application/json" \
-		-d '{"section":"CSCI-101","count":1,"allowance":100000,"expiresAt":"2027-06-30T23:59:59Z"}'
+		-d '{"section":"CSCI-101","count":$(count),"allowance":$(allowance),"expiresAt":"$(shell date -u -d "+$(days) days" +%Y-%m-%dT23:59:59Z)"}'
 
 # Hits the vLLM container directly, bypassing the gateway
 llm-check-life:
