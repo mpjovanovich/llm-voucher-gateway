@@ -142,10 +142,15 @@ _Complete_
   - _COMPLETE_ — exhausted
   - _COMPLETE_ — expired (mint with an `expiresAt` a minute or two out, then wait)
   - TODO — revoked (can't test yet, no endpoint; need a way to update sqlite database easily)
-- Check that the admin key for vouchers is working (case where we didn't mint one)
-- Do an eyes-on check of voucher rows in `vouchers.db`, checking consumption updates.
+
+- _COMPLETE_ — Check that the admin key for vouchers is working (case where we didn't mint one)
+
+- _COMPLETE_ — Do an eyes-on check of voucher rows in `vouchers.db`, checking consumption updates.
+
 - Last used timestamp on voucher? Or just use logging? Are we tracking this anywhere?
+
 - Cleanup Program.cs - break DI into files
+
 - The Streamlit frontend was vibe coded and needs review and cleanup.
 
 ### 7.6 Sanity check how it's going to work on a VPS
