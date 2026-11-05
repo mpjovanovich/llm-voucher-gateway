@@ -109,12 +109,6 @@ Mint vouchers with `POST /admin/vouchers` (see [LlmVoucherGateway.Api.http](../s
 - **6g.1** _COMPLETE_ — Web client base URL from config
 - **6g.2** _COMPLETE_ — `GET /v1/models` pass-through
 - **6g.3** _COMPLETE_ — Streamlit against the gateway with a valid voucher
-- **6g.4** Streamlit against the gateway with rejected vouchers:
-  - _COMPLETE_ — unknown
-  - TODO — expired (mint with an `expiresAt` a minute or two out, then wait)
-  - TODO — revoked
-  - TODO — exhausted. Watch this one: `403 insufficient_quota` is less common than `401`, and a client may render it poorly. If it does, revisit the status map rather than hiding the distinction
-- **6g.5** TODO — Preliminary Aider run: redo the Milestone 2 CSV task through the gateway, with the voucher in `OPENAI_API_KEY`. Repeat with a revoked voucher and confirm the failure is legible in the harness, not a crash or silence
 
 **Done when (whole milestone):** a valid voucher works, and an invalid one fails cleanly _in the client_, not just in curl.
 
@@ -143,16 +137,30 @@ _Complete_
 
 ### 7.5 Misc cleanup and live developer checks
 
+- Check that the admin key for vouchers is working (case where we didn't mint one)
+- Do an eyes-on check of voucher rows in `vouchers.db`, checking consumption updates.
+- Streamlit against the gateway with rejected vouchers:
+  - _COMPLETE_ — unknown
+  - TODO — expired (mint with an `expiresAt` a minute or two out, then wait)
+  - TODO — revoked
+  - TODO — exhausted. Watch this one: `403 insufficient_quota` is less common than `401`, and a client may render it poorly. If it does, revisit the status map rather than hiding the distinction
+- Last used timestamp on voucher? Or just use logging? Are we tracking this anywhere?
 - Cleanup Program.cs - break DI into files
 - The Streamlit frontend was vibe coded and needs review and cleanup.
-- Do an eyes-on check of voucher rows in `vouchers.db`, checking consumption updates.
-- Last used timestamp on voucher? Or just use logging? Are we tracking this anywhere?
+
+### 7.6 Sanity check how it's going to work on a VPS
+
+- Determine and document a way to access and backup the database.
+  - Database should be bind mounted so that it exists outside of the container filesystem.
+  - sqlite-web with ssh to connect in case we need to do ad-hoc queries
+- At what point do we start building container images?
+  - Dev workflow only needs container for vLLM
+
 
 ---
 
 ## 8. Operational readiness
 
-- Determine and document a way to access and backup the database.
 - Structured logging with a correlation ID per request
 - `app.UseSerilogRequestLogging()` — one line per HTTP request, the only record of a request rejected before an endpoint ran. The client address needs a small enricher
 - Rolling file sink with 14–30 days retention, on the same mounted volume as the SQLite database. Console logs die with the container
