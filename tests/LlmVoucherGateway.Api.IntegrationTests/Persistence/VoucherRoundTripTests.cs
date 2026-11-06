@@ -55,5 +55,6 @@ public class VoucherRoundTripTests
         Assert.Equal(VoucherStatus.Active, reloaded.Status);
         Assert.Equal(issued.Voucher.Lifetime.CreatedAt, reloaded.Lifetime.CreatedAt);
         Assert.Equal(issued.Voucher.Lifetime.ExpiresAt, reloaded.Lifetime.ExpiresAt);
+        Assert.Null(reloaded.LastRequestedAt);
     }
 }

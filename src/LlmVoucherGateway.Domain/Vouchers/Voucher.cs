@@ -38,6 +38,10 @@ public sealed class Voucher : Entity
     public VoucherStatus Status { get; private set; }
     public VoucherLifetime Lifetime { get; private set; }
 
+    // Null until the first request. A sentinel date would make "never used" indistinguishable
+    // from a request at that date.
+    public DateTimeOffset? LastRequestedAt { get; private set; }
+
     /// <summary>
     /// Whether this voucher may be spent right now. Takes the clock rather than reading
     /// it, so the rule is testable at the instant either side of a boundary.
@@ -90,6 +94,13 @@ public sealed class Voucher : Entity
         }
 
         Consumed += tokens;
+    }
+
+    // A later call replaces the earlier time. The stamp is when the voucher was last
+    // presented, whether or not the request was then allowed to spend.
+    public void RecordRequest(DateTimeOffset at)
+    {
+        LastRequestedAt = at;
     }
 
     public static IssuedVoucher Issue(

@@ -29,6 +29,9 @@ namespace LlmVoucherGateway.Api.Persistence.Migrations
                     b.Property<int>("Consumed")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTimeOffset?>("LastRequestedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Section")
                         .HasColumnType("TEXT");
 

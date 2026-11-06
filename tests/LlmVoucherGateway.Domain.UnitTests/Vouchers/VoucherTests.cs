@@ -42,6 +42,52 @@ public class VoucherTests
     }
 
     [Fact]
+    public void Issue_LeavesLastRequestedAtUnset()
+    {
+        IssuedVoucher issued = Voucher.Issue(
+            "section",
+            100,
+            FixedUtcNow.AddDays(1),
+            new FakeDateTimeProvider(FixedUtcNow)
+        );
+
+        Assert.Null(issued.Voucher.LastRequestedAt);
+    }
+
+    [Fact]
+    public void RecordRequest_SetsLastRequestedAt()
+    {
+        Voucher voucher = Voucher.Issue(
+            "section",
+            100,
+            FixedUtcNow.AddDays(1),
+            new FakeDateTimeProvider(FixedUtcNow)
+        ).Voucher;
+        DateTimeOffset requestedAt = new(FixedUtcNow.AddHours(2));
+
+        voucher.RecordRequest(requestedAt);
+
+        Assert.Equal(requestedAt, voucher.LastRequestedAt);
+    }
+
+    [Fact]
+    public void RecordRequest_CalledAgain_ReplacesTheEarlierTime()
+    {
+        Voucher voucher = Voucher.Issue(
+            "section",
+            100,
+            FixedUtcNow.AddDays(1),
+            new FakeDateTimeProvider(FixedUtcNow)
+        ).Voucher;
+        DateTimeOffset later = new(FixedUtcNow.AddHours(3));
+
+        voucher.RecordRequest(new DateTimeOffset(FixedUtcNow.AddHours(1)));
+        voucher.RecordRequest(later);
+
+        Assert.Equal(later, voucher.LastRequestedAt);
+    }
+
+    [Fact]
     public void Issue_CalledMultipleTimes_GeneratesUniqueKeysAndIds()
     {
         FakeDateTimeProvider dateTimeProvider = new(FixedUtcNow);

@@ -149,16 +149,15 @@ _Complete_
 
 - _COMPLETE_ - Cleanup Program.cs - break DI into files
 
-- The Streamlit frontend was vibe coded and needs review and cleanup.
-
-- Add "LastRequestedAt" field to Vouchers to record when a voucher was tried to be used (time of request).
+- _COMPLETE_ - The Streamlit frontend was vibe coded and needs review and cleanup.
 
 ## 7.55 - Add LastRequestedAt field to Vouchers
 
-1. Voucher.cs — add public DateTimeOffset? LastRequestedAt { get; private set; } and RecordRequest(DateTimeOffset at). Nullable so never requested is a real state rather than a sentinel date; that's the "was this ever even used?" answer.
-2. VoucherRequiredEndpointFilter.cs — take VoucherDbContext, call RecordRequest + SaveChangesAsync once the credential resolves to a voucher, before the spendability check, so admitted and rejected requests both stamp. Wrap it in the same swallow-and-log as ConsumptionRecorder.cs:36-45 — a database hiccup must not turn a spendable voucher into a rejection.
-3. Migration via dotnet ef migrations add, matching the existing Migrations/ pattern. No OwnsOne mapping needed; it's a plain column.
-4. Unit tests in VoucherTests (null on issue, set on request); integration test that a rejected request still stamps.
+Field has now been added, but nothing sets it in the actual API app.
+
+Needs this part:
+
+VoucherRequiredEndpointFilter.cs — take VoucherDbContext, call RecordRequest + SaveChangesAsync once the credential resolves to a voucher, before the spendability check, so admitted and rejected requests both stamp. Wrap it in the same swallow-and-log as ConsumptionRecorder.cs:36-45 — a database hiccup must not turn a spendable voucher into a rejection.
 
 ### 7.6 Sanity check how it's going to work on a VPS
 
@@ -240,3 +239,14 @@ vllm serve <model> \
  --api-key <shared-or-per-student-key>
 
 Agentic capabilities may be limited by the model that we're running.
+
+Looks like this needs a VS Code extension to be able to use the API:
+
+- Search extensions for tag:"language-models"
+- Foundry Toolkit for VS Code
+  - ms-windows-ai-studio.windows-ai-studio
+  - https://peterfalkingham.com/2025/10/27/using-local-ai-llm-in-vs-code-without-third-party-software/
+  - May have licencing restrictions
+- OAI Compatible Provider for Copilot
+  - johnny-zhao.oai-compatible-copilot
+  - MIT licensed
