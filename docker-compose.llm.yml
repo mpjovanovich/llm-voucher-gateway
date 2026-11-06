@@ -3,32 +3,36 @@
 
 # See Makefile for example curl requests to hit the LLM and Gateway API.
 
-# Adjustments may be needed for different hardware.
-# You will need to configure this to use the right model and GPU memory, not use
-# WSL, etc.
+# Per-machine values come from .env in the repo root (copy .env.example). The
+# defaults below are what `make run-llm` used before .env existed.
+#
+# --enable-force-include-usage is deliberately a literal: streaming metering
+# depends on it, so it is not a per-machine choice.
 services:
   llm-server:
-    image: vllm/vllm-openai:v0.29.0
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.29.0}
     ipc: host
     ports:
-      - "8000:8000"
+      # Only the host side is configurable; the process inside the container
+      # always listens on 8000, which is the address the gateway container uses.
+      - "${VLLM_PORT:-8000}:8000"
     volumes:
       - huggingface-cache:/root/.cache/huggingface
     environment:
       # WSL2 kernel supports pinned memory (needed for vLLM's UVA buffers)
       # but vLLM keeps it opt-in on WSL2 by default; enable it explicitly.
-      # It's set to use 85% of available VRAM.
-      - VLLM_WSL2_ENABLE_PIN_MEMORY=1
+      # Set to 0 on a native Linux host.
+      - VLLM_WSL2_ENABLE_PIN_MEMORY=${VLLM_WSL2_ENABLE_PIN_MEMORY:-1}
     command: >
-      --model Qwen/Qwen2.5-0.5B-Instruct
-      --gpu-memory-utilization 0.85
+      --model ${VLLM_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
+      --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:-0.85}
       --enable-force-include-usage
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: ${VLLM_GPU_COUNT:-1}
               capabilities: [gpu]
 
 volumes:

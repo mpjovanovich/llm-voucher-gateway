@@ -159,6 +159,10 @@ _Complete_
 
 Field has now been added, and is set whenever anyone tries to use the API with the voucher.
 
+## 7.5 Remove hardcoded options - port to configuration
+
+See planning doc for this.
+
 ### 7.6 Sanity check how it's going to work on a VPS
 
 - Determine and document a way to access and backup the database.
@@ -216,6 +220,12 @@ Small scale hardware confirmed:
 GeForce RTX 5060 8GB vRAM
 64GB RAM on host machine
 ```
+
+_Proposed model_: Qwen3.5-9B
+
+After loading the model into VRAM, the remaining space is allocated to KV cache. This is what's left to handle user context from requests and the model's responses. Because there are only 8GB VRAM, we may see some blocking if many users hit the system at the same time or when users have a large context.
+
+A better card for this at the same price point would be an RTX 3060, w/ 12GB VRAM.
 
 ---
 

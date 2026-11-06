@@ -5,6 +5,19 @@
 .PHONY: llm-check-life
 
 # ########################################
+# LLM CONFIG
+# ########################################
+# Shared with docker compose so the curl helpers below target the same model and
+# port as the running server. Defaults match docker-compose.llm.yml.
+# ?= leaves a shell-exported value alone; `export` hands the resolved values to
+# compose, so make and compose cannot disagree.
+-include .env
+
+VLLM_MODEL ?= Qwen/Qwen2.5-0.5B-Instruct
+VLLM_PORT ?= 8000
+export
+
+# ########################################
 # VENV CONFIG
 # ########################################
 WEB_DIR := src/LlmVoucherGateway.Web
@@ -58,7 +71,7 @@ api-check-completion-nostream:
 	curl -sS -w '\n' http://localhost:5131/v1/chat/completions \
 		-H "Authorization: Bearer $(key)" \
 		-H "Content-Type: application/json" \
-		-d '{"model":"Qwen/Qwen2.5-0.5B-Instruct","messages":[{"role":"user","content":"Say hello in one sentence."}]}'
+		-d '{"model":"$(VLLM_MODEL)","messages":[{"role":"user","content":"Say hello in one sentence."}]}'
 
 # Requires a voucher to be minted first.
 # make api-check-completion key=<voucher-key>
@@ -66,7 +79,7 @@ api-check-completion-streaming:
 	curl -sS -w '\n' http://localhost:5131/v1/chat/completions \
 		-H "Authorization: Bearer $(key)" \
 		-H "Content-Type: application/json" \
-		-d '{"model":"Qwen/Qwen2.5-0.5B-Instruct","messages":[{"role":"user","content":"Say hello in one sentence."}],"stream":true}'
+		-d '{"model":"$(VLLM_MODEL)","messages":[{"role":"user","content":"Say hello in one sentence."}],"stream":true}'
 
 # make api-mint-voucher (uses defaults above)
 # make api-mint-voucher count=1 allowance=10000 days=30
@@ -78,4 +91,4 @@ api-mint-voucher:
 
 # Hits the vLLM container directly, bypassing the gateway
 llm-check-life:
-	curl -sS -w '\n' http://localhost:8000/v1/models
+	curl -sS -w '\n' http://localhost:$(VLLM_PORT)/v1/models
