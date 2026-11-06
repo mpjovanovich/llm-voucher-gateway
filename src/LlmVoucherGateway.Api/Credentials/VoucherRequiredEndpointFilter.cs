@@ -1,4 +1,5 @@
 using LlmVoucherGateway.Api.Errors;
+using LlmVoucherGateway.Api.Persistence;
 using LlmVoucherGateway.Domain.Abstractions;
 using LlmVoucherGateway.Domain.Vouchers;
 
@@ -9,6 +10,7 @@ namespace LlmVoucherGateway.Api.Credentials;
 /// whether they may spend, and says why not in a format the client already understands.
 /// </summary>
 internal sealed class VoucherRequiredEndpointFilter(
+    VoucherDbContext dbContext,
     IDateTimeProvider dateTimeProvider,
     ILogger<VoucherRequiredEndpointFilter> logger
 ) : IEndpointFilter
@@ -40,6 +42,8 @@ internal sealed class VoucherRequiredEndpointFilter(
                 "no voucher credential"
             );
         }
+
+        await StampRequestedAtAsync(voucher, context.HttpContext.RequestAborted);
 
         VoucherSpendability spendability = voucher.CheckSpendability(dateTimeProvider);
 
@@ -74,6 +78,26 @@ internal sealed class VoucherRequiredEndpointFilter(
                 "voucher unusable"
             ),
         };
+    }
+
+    // Stamped before the spendability check, so a rejected presentation is recorded as
+    // well as an admitted one: the question this answers is "was this key tried", which
+    // separates a revoked voucher still in use from one quietly abandoned.
+    private async Task StampRequestedAtAsync(Voucher voucher, CancellationToken cancellationToken)
+    {
+        try
+        {
+            voucher.RecordRequest(new DateTimeOffset(dateTimeProvider.UtcNow));
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        // A database hiccup must not turn a spendable voucher into a rejection. The stamp
+        // is diagnostic; losing one costs less than refusing a student's request.
+        catch (Exception exception)
+        {
+            // No voucher id or prefix, as on every other line: the time is the handle.
+            logger.LogError(exception, "Failed to stamp the voucher's last request time.");
+        }
     }
 
     // Warning, as for admin rejections: a refused request is the signal a post-mortem

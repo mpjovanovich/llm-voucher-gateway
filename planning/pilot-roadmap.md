@@ -137,6 +137,8 @@ _Complete_
 
 ### 7.5 Misc cleanup and live developer checks
 
+_Complete_
+
 - Streamlit against the gateway with rejected vouchers:
   - _COMPLETE_ — unknown
   - _COMPLETE_ — exhausted
@@ -153,11 +155,9 @@ _Complete_
 
 ## 7.55 - Add LastRequestedAt field to Vouchers
 
-Field has now been added, but nothing sets it in the actual API app.
+_Complete_
 
-Needs this part:
-
-VoucherRequiredEndpointFilter.cs — take VoucherDbContext, call RecordRequest + SaveChangesAsync once the credential resolves to a voucher, before the spendability check, so admitted and rejected requests both stamp. Wrap it in the same swallow-and-log as ConsumptionRecorder.cs:36-45 — a database hiccup must not turn a spendable voucher into a rejection.
+Field has now been added, and is set whenever anyone tries to use the API with the voucher.
 
 ### 7.6 Sanity check how it's going to work on a VPS
 

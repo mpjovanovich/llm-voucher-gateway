@@ -36,9 +36,7 @@ internal sealed class ConsumptionRecorder(
         // The caller has already been sent the response by now, and an exception escaping
         // here would abort the connection before it is properly ended. A lost charge costs
         // a soft budget some tokens; a broken response costs the student the answer.
-#pragma warning disable CA1031
         catch (Exception exception)
-#pragma warning restore CA1031
         {
             // No voucher id or prefix, as for every other line: the time is the handle.
             logger.LogError(exception, "Failed to record {TotalTokens} consumed tokens.", totalTokens);
