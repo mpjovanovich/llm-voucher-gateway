@@ -140,7 +140,8 @@ with actions:
 ready = bool(token and model)
 
 submission = st.chat_input(
-    "Ask something" if ready else "Enter a valid voucher in the sidebar first",
+    "Enter your prompt..."
+    if ready else "Enter a valid voucher in the sidebar first",
     accept_file="multiple",
     file_type=FILE_TYPES,
     disabled=not ready,
