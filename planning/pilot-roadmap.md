@@ -227,3 +227,16 @@ GeForce RTX 5060 8GB vRAM
 - The `openai/` model prefix gotcha, and the `OPENAI_API_KEY` collision
 
 **Done when:** a student with no setup is running in under 15 minutes without your help.
+
+---
+
+## 12. Updates for VS Code integration
+
+Agent features depend on tool calling, and vLLM does not enable it by default. Need to start the server with flags such as:
+
+vllm serve <model> \
+ --enable-auto-tool-choice \
+ --tool-call-parser <parser-for-your-model> \
+ --api-key <shared-or-per-student-key>
+
+Agentic capabilities may be limited by the model that we're running.
