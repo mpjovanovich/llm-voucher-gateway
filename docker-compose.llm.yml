@@ -1,32 +1,11 @@
-# VLLM IS NOT PART OF THE APPLICATION - THIS IS HERE FOR LOCAL DEVELOPMENT TESTING AND
-# TO PROVIDE AN EXAMPLE OF WHAT THE APPLICATION IS TALKING TO.
-
 # Requires host to have NVIDIA GPU and NVIDIA Container Toolkit installed:
 #   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.htm
-# Uses a tiny model for the proof of concept.
 
-# Once this is running:
-# List models: http://localhost:8000/v1/models
+# See Makefile for example curl requests to hit the LLM and Gateway API.
 
-# Example request:
-# curl http://localhost:8000/v1/chat/completions \
-#     -H "Content-Type: application/json" \
-#     -d '{
-#       "model": "Qwen/Qwen2.5-0.5B-Instruct",
-#       "messages": [{"role": "user", "content": "Say hello in one sentence."}]
-#     }'
-
-# Streaming request (returns response in chunks):
-# curl -N http://localhost:8000/v1/chat/completions \
-#     -H "Content-Type: application/json" \
-#     -d '{
-#       "model": "Qwen/Qwen2.5-0.5B-Instruct",
-#       "messages": [{"role": "user", "content": "Say hello in one sentence."}],
-#       "stream": true
-#     }'
-
-# Note that this is very specific for the developer's machine
-# It's not meant to be a general purpose setup.
+# Adjustments may be needed for different hardware.
+# You will need to configure this to use the right model and GPU memory, not use
+# WSL, etc.
 services:
   llm-server:
     image: vllm/vllm-openai:v0.29.0

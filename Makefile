@@ -1,7 +1,8 @@
 # Needed so that Make knows these are not actual files
 .PHONY: clean down migration
 .PHONY: run-api run-llm run-web
-.PHONY: api-check-completion api-mint-voucher llm-check-life
+.PHONY: api-check-completion-nostream api-check-completion-streaming api-mint-voucher
+.PHONY: llm-check-life
 
 # ########################################
 # VENV CONFIG
@@ -47,18 +48,25 @@ run-web: $(VENV)/.installed
 # ########################################
 # These are mostly work-in-progress scripts to see what's running.
 # We don't have a lot of dev infrastructure in place.
+count ?= 1
+allowance ?= 10000
+days ?= 30
 
 # Requires a voucher to be minted first.
-# make api-check-completion key=<voucher-key>
-api-check-completion:
+# make api-check-completion-nostream key=<voucher-key>
+api-check-completion-nostream:
 	curl -sS -w '\n' http://localhost:5131/v1/chat/completions \
 		-H "Authorization: Bearer $(key)" \
 		-H "Content-Type: application/json" \
 		-d '{"model":"Qwen/Qwen2.5-0.5B-Instruct","messages":[{"role":"user","content":"Say hello in one sentence."}]}'
 
-count ?= 1
-allowance ?= 10000
-days ?= 30
+# Requires a voucher to be minted first.
+# make api-check-completion key=<voucher-key>
+api-check-completion-streaming:
+	curl -sS -w '\n' http://localhost:5131/v1/chat/completions \
+		-H "Authorization: Bearer $(key)" \
+		-H "Content-Type: application/json" \
+		-d '{"model":"Qwen/Qwen2.5-0.5B-Instruct","messages":[{"role":"user","content":"Say hello in one sentence."}],"stream":true}'
 
 # make api-mint-voucher (uses defaults above)
 # make api-mint-voucher count=1 allowance=10000 days=30
