@@ -1,6 +1,6 @@
 # VPS deployment
 
-How the pilot runs on its server. Settled during [Milestone 7.6](pilot-roadmap.md#76-sanity-check-how-its-going-to-work-on-a-vps); the files it describes land in Milestone 8.
+How the pilot runs on its server. Settled during [Milestone 7.6](pilot-roadmap.md#76-vps-deployment-plan); the files it describes land in Milestone 8.
 
 The pilot is casual: one server, one developer, not a critical system. Choices favor fewer moving parts over hardening.
 
