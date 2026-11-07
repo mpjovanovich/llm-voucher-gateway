@@ -23,7 +23,7 @@ sets the flag, and harnesses send no `stream_options`.
 
 ## Development testing
 
-With vLLM up (`make up-llm`), the request that produces the gateway's real shape sends no
+With vLLM up (`make run-llm`), the request that produces the gateway's real shape sends no
 usage option at all:
 
 ```bash

@@ -73,7 +73,7 @@ public sealed class Voucher : Entity
     }
 
     // Idempotent: revoking a revoked voucher already satisfies the caller's intent. The
-    // endpoint and the recorded reason are Milestone 8; the transition lives here because
+    // endpoint and the recorded reason are Milestone 9; the transition lives here because
     // the rule that reads it does.
     public void Revoke()
     {

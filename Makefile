@@ -46,7 +46,7 @@ migration:
 	ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations add $(name) \
 		--project src/LlmVoucherGateway.Api --output-dir Persistence/Migrations
 
-# Gateway API on http://localhost:5131, pointed at the vLLM from up-llm
+# Gateway API on http://localhost:5131, pointed at the vLLM from run-llm
 run-api:
 	dotnet run --project src/LlmVoucherGateway.Api --launch-profile http
 
