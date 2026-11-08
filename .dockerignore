@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/.data/
+**/.venv/
+**/__pycache__/
+.git/
+.vscode/
+.env
+tests/
