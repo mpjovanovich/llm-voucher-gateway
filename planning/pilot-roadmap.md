@@ -180,7 +180,7 @@ See [vps-deployment.md](vps-deployment.md).
 
 **Packaging**
 
-- TODO — Gateway Dockerfile
+- _COMPLETE_ — Gateway Dockerfile
 - TODO — Streamlit Dockerfile; pin `requirements.txt`
 - TODO — `docker-compose.prod.yml`: all four services, restart policy, log rotation, `/data` bind mount, no vLLM port
 - TODO — Server `.env`
