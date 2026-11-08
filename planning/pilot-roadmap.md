@@ -181,7 +181,7 @@ See [vps-deployment.md](vps-deployment.md).
 **Packaging**
 
 - _COMPLETE_ — Gateway Dockerfile
-- TODO — Streamlit Dockerfile; pin `requirements.txt`
+- _COMPLETE_ — Streamlit Dockerfile; pin `requirements.txt`
 - TODO — `docker-compose.prod.yml`: all four services, restart policy, log rotation, `/data` bind mount, no vLLM port
 - TODO — Server `.env`
 - _COMPLETE_ — Configuration and secrets outside source control
