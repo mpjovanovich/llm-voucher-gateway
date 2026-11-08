@@ -1,6 +1,6 @@
-# The gateway's own service lands here in Milestone 9 (operational readiness), together
-# with the volume mount holding the SQLite database file. The Postgres service that used
-# to live here was removed when persistence moved to SQLite — see Milestone 4 in
-# planning/pilot-roadmap.md.
+# The production stack, including the gateway service and the volume holding the SQLite
+# database file, lands in docker-compose.prod.yml in Milestone 8 — see
+# planning/vps-deployment.md. The Postgres service that used to live here was removed
+# when persistence moved to SQLite — see Milestone 4 in planning/pilot-roadmap.md.
 #
-# vLLM runs from docker-compose.llm.yml: make up-llm
+# vLLM runs from docker-compose.llm.yml: make run-llm

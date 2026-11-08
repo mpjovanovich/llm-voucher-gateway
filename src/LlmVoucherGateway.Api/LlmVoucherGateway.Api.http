@@ -1,5 +1,5 @@
 # Requests against the gateway. Start vLLM and the API first:
-#   make up-llm && make run-api
+#   make run-llm && make run-api
 #
 # Runs in VS Code (REST Client extension), Visual Studio, and Rider.
 # Swap @baseUrl to http://localhost:8000 to hit vLLM directly for comparison — note

@@ -41,8 +41,8 @@ internal static class VoucherIssuanceEndpoint
         // stamps the time, and that plus the address is enough to go to the database
         // for what was actually minted — so nothing identifying a voucher is logged
         // here, and the `key` field never is, at any level.
-        // Behind the reverse proxy added in Milestone 9 this is the proxy unless
-        // forwarded headers are configured there.
+        // Behind the reverse proxy added in Milestone 8 this is the proxy unless
+        // forwarded headers are enabled.
         IPAddress? sourceIpAddress = httpContext.Connection.RemoteIpAddress;
 
         loggerFactory.CreateLogger(LogCategory).LogInformation(

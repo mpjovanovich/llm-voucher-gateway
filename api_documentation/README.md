@@ -93,7 +93,7 @@ produced 961 chunks against 750 for the other five. Compare timing shapes, not t
 
 ## Regenerating this capture set
 
-With vLLM running (`make up-llm`), see the `curl` examples at the top of each
+With vLLM running (`make run-llm`), see the `curl` examples at the top of each
 file. The comments at the top of
 [docker-compose.llm.yml](../docker-compose.llm.yml) show the base request shapes
 this capture set was built from.

@@ -52,6 +52,6 @@ ever has to understand one error format.
 
 Tests assert on the exact bytes — the token totals the usage observers extract, and the
 bodies the relay must pass through untouched. Refresh one by re-running the capture against
-a live vLLM (`make up-llm`, then the `curl` shapes in `api_documentation/`), not by hand
+a live vLLM (`make run-llm`, then the `curl` shapes in `api_documentation/`), not by hand
 editing. The `created` timestamps and `id` values are part of the capture; leaving them
 intact is what makes the file evidence rather than a fabricated example.

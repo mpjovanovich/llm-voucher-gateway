@@ -64,7 +64,7 @@ We're keeping a monorepo with the following components:
 
 ## Auth model
 
-The client uses the voucher as the bearer token to authenticate with the Gateway API. Only the Gateway API knows the vLLM API key.
+The client uses the voucher as the bearer token to authenticate with the Gateway API. vLLM is reachable only from the Gateway API, never publicly.
 
 ## Budget and Usage Recording Model
 

@@ -28,13 +28,13 @@ The dev GPU box is lower spec than production. These milestones prove shape and 
 | 5. Voucher issuance, admin auth, issuance logging                                                          | [Endpoints/](../src/LlmVoucherGateway.Api/Endpoints/), [Credentials/](../src/LlmVoucherGateway.Api/Credentials/)                                                                                                                                                                                                              |
 | 6a–6f. Error contract, fake inference client, spendability, voucher lookup, enforcement, rejection logging | [Errors/](../src/LlmVoucherGateway.Api/Errors/), [CredentialMiddleware.cs](../src/LlmVoucherGateway.Api/Middleware/CredentialMiddleware.cs), [VoucherRequiredEndpointFilter.cs](../src/LlmVoucherGateway.Api/Credentials/VoucherRequiredEndpointFilter.cs), [Voucher.cs](../src/LlmVoucherGateway.Domain/Vouchers/Voucher.cs) |
 
-Run with `make up-llm && make run-api`.
+Run with `make run-llm && make run-api`.
 
 ### Findings worth carrying forward
 
 - **Aider requests only streamed `POST /v1/chat/completions`** — no `GET /v1/models`, no tool calling. Each task issues two requests: the edit, then Aider's automatic lint-fix follow-up. A different client may request other paths.
 - **Tool calling is not enabled.** No tool-call shape was captured, and the compose command lacks `--enable-auto-tool-choice --tool-call-parser hermes`. If a harness sends `tools`, that is a return trip to Milestone 1.
-- **Streaming passthrough is proven unbuffered only against vLLM direct** (Milestone 3, per-chunk timing). The fake inference client uses a `MemoryStream`, so the test suite cannot catch buffering. It must be re-proven through Caddy in Milestone 9.
+- **Streaming passthrough is proven unbuffered only against vLLM direct** (Milestone 3, per-chunk timing). The fake inference client uses a `MemoryStream`, so the test suite cannot catch buffering. It must be re-proven through Caddy in Milestone 8.
 - **The pinned vLLM image tag is the drift control.** There is no CI schema check; Milestone 10 re-pulls and diffs `openapi.json` if the version changes.
 
 ### Decisions and their reasons
@@ -90,7 +90,7 @@ A stand-in replaying the Milestone 1 captures, registered by the test factory in
 - The fake records the bodies it was asked to forward. That is what lets 6e assert a rejected request never reached the inference server at all, rather than only checking the status a caller saw
 - First tests of `/v1/chat/completions`: the response relays byte for byte, the request body is forwarded unchanged, and a streamed response ends in `data: [DONE]` — the terminator whose absence makes a harness hang rather than fail
 
-**Does not cover:** that streaming stays unbuffered. The fake's body is a `MemoryStream`, so timing proves nothing here; that remains Milestone 3's proof against a real server, and Milestone 9's through the proxy.
+**Does not cover:** that streaming stays unbuffered. The fake's body is a `MemoryStream`, so timing proves nothing here; that remains Milestone 3's proof against a real server, and Milestone 8's through the proxy.
 
 **Done when:** an integration test posts to `/v1/chat/completions` and gets the captured response back, with no GPU involved.
 
@@ -104,7 +104,7 @@ An end-to-end checkpoint for what the integration tests can't see. The proof of 
 
 The client in use is a [Streamlit web UI](../src/LlmVoucherGateway.Web/app.py) rather than Aider at first. It calls the gateway from its Python server process, so CORS is not a factor. It reads `GATEWAY_BASE_URL`, which defaults to the `make run-api` address. `GET /v1/models` is now passed through behind the voucher filter, so a bad voucher shows up in the sidebar before a prompt is typed.
 
-Mint vouchers with `POST /admin/vouchers` (see [LlmVoucherGateway.Api.http](../src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.http)). There is no revoke endpoint until Milestone 8 and no consumption recording until Milestone 7, so set those states in the database directly: `src/LlmVoucherGateway.Api/.data/vouchers.db`, table `Vouchers`, columns `Status` (`'Active'` / `'Revoked'`), `Consumed`, `Allowance`, `Lifetime_ExpiresAt`, `Key_Prefix`.
+Mint vouchers with `POST /admin/vouchers` (see [LlmVoucherGateway.Api.http](../src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.http)). There is no revoke endpoint until Milestone 9 and no consumption recording until Milestone 7, so set those states in the database directly: `src/LlmVoucherGateway.Api/.data/vouchers.db`, table `Vouchers`, columns `Status` (`'Active'` / `'Revoked'`), `Consumed`, `Allowance`, `Lifetime_ExpiresAt`, `Key_Prefix`.
 
 - **6g.1** _COMPLETE_ — Web client base URL from config
 - **6g.2** _COMPLETE_ — `GET /v1/models` pass-through
@@ -163,32 +163,55 @@ Field has now been added, and is set whenever anyone tries to use the API with t
 
 See planning doc for this.
 
-### 7.6 Sanity check how it's going to work on a VPS
+## 7.6 VPS deployment plan
 
-- Determine and document a way to access and backup the database.
-  - Database should be bind mounted so that it exists outside of the container filesystem.
-  - sqlite-web with ssh to connect in case we need to do ad-hoc queries
-- At what point do we start building container images?
-  - Dev workflow only needs container for vLLM
+_Complete_ — see [vps-deployment.md](vps-deployment.md)
+
+- _COMPLETE_ — Topology, packaging, gateway exposure, reverse proxy
+- _COMPLETE_ — Database location, backup and ad-hoc access
+- _COMPLETE_ — Log access
+- _COMPLETE_ — When container images get built: Milestone 8
 
 ---
 
-## 8. Operational readiness
+## 8. Deployment and operational readiness
 
-- Structured logging with a correlation ID per request
-- `app.UseSerilogRequestLogging()` — one line per HTTP request, the only record of a request rejected before an endpoint ran. The client address needs a small enricher
-- Rolling file sink with 14–30 days retention, on the same mounted volume as the SQLite database. Console logs die with the container
-- `UseForwardedHeaders` once Caddy is in front, or every logged address becomes the proxy's
-- **Never logged:** keys, `Authorization` headers, request or response bodies. Logging prompt bodies would end the project's claim to hold no student content
-- `/health` — checks vLLM reachability, endpoint from configuration
-- Configuration and secrets outside source control
-- Global exception handling that returns OpenAI-shaped errors
-- Caddy as reverse proxy for certificates
-- Restart policy, and a documented "it's down, what now" procedure
+See [vps-deployment.md](vps-deployment.md).
 
-**Done when:** you can restart the box and it comes back without intervention.
+**Packaging**
 
-**Risk, accepted:** Caddy is the most likely thing to break streaming. Re-run Milestone 3's timing comparison through the proxy. If it buffers and the fix isn't quick, fall back to Milestone 7's simpler metering.
+- TODO — Gateway Dockerfile
+- TODO — Streamlit Dockerfile; pin `requirements.txt`
+- TODO — `docker-compose.prod.yml`: all four services, restart policy, log rotation, `/data` bind mount, no vLLM port
+- TODO — Server `.env`
+- _COMPLETE_ — Configuration and secrets outside source control
+
+**Proxy and access**
+
+- TODO — Caddyfile, DNS, certificates
+- TODO — Forwarded headers on the gateway
+- TODO — Re-prove unbuffered streaming through Caddy
+- TODO — `GATEWAY_URL` in the Makefile `api-*` targets
+
+**Logging**
+
+- TODO — Request logging with client address
+- TODO — Correlation ID per request
+- TODO — Rolling JSON file sink in `/data/logs`, 30 days
+- TODO — Check that Caddy and vLLM logs hold no keys or prompt text
+
+**Database**
+
+- TODO — Backup cron
+- TODO — sqlite-web under the `tools` profile
+
+**Health and errors**
+
+- TODO — `/health`, checking vLLM reachability
+- TODO — Unhandled exceptions on `/v1` return OpenAI-shaped errors (currently ProblemDetails)
+- TODO — "It's down, what now" procedure
+
+**Done when:** the server reboots and comes back without intervention, and a harness streams through `https://llm.example.edu/v1`.
 
 ---
 
