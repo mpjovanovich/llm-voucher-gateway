@@ -109,6 +109,7 @@ chat.example.edu {
 ```
 
 - **Certificates:** automatic from Let's Encrypt. Needs DNS A records for both hostnames and ports 80 and 443 open. Persist Caddy's `/data` in a named volume, or every rebuild re-requests certificates and runs into rate limits
+- **Cloudflare records are DNS only (grey cloud), not proxied.** Cloudflare's proxy cuts responses off at 100 seconds, which kills long generations, and it puts its own addresses in front of every client
 - **Hostnames over paths:** Streamlit under a subpath needs `baseUrlPath` and is fiddly. A hostname per app keeps the client base URL a plain `https://llm.example.edu/v1`
 - **Streaming:** Caddy flushes `text/event-stream` immediately; `flush_interval -1` makes that explicit. **No `encode` on the gateway site**, since compression is the likeliest thing to buffer a stream. Re-run Milestone 3's per-chunk timing through Caddy
 - **Timeouts:** Caddy and Kestrel have no default response timeout, and the gateway's `HttpClient.Timeout` is infinite. Long generations survive end to end. Do not add a timeout without considering streams
