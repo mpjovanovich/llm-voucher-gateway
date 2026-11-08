@@ -19,7 +19,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app ./
 
-# Runs as the image's non-root user, UID 1654. A bind mount at /data must be writable by it.
+# Runs as the image's non-root user, UID 1654. A bind mount at /data must be writable by it;
+# a new named volume copies the ownership of the directory created here.
+RUN mkdir /data && chown $APP_UID:$APP_UID /data
 USER $APP_UID
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "LlmVoucherGateway.Api.dll"]
