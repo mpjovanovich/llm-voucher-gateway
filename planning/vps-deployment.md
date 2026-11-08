@@ -31,7 +31,7 @@ Two images are ours; vLLM is the official image, unchanged.
 - Listens on **8080**, the .NET image default (`ASPNETCORE_HTTP_PORTS`). `launchSettings.json` and port 5131 are dev-only
 - Runs as `Production`, so only [appsettings.json](../src/LlmVoucherGateway.Api/appsettings.json) loads. Its empty values plus `ValidateOnStart` mean the container will not boot until the environment supplies:
   - `Inference__BaseUrl=http://llm-server:8000`
-  - `Admin__Keys__0` — from the server's `.env`
+  - `Admin__Keys__0` — from `ADMIN_KEY` in the server's `.env`. Compose refuses to start without it
   - `Database__Path=/data/vouchers.db`
 - Runs as the non-root `app` user, **UID 1654**. The host directory mounted at `/data` must be writable by it: `chown 1654 /srv/llm-gateway/data`
 - Mount the **directory**, not the database file. WAL mode keeps `vouchers.db-wal` and `vouchers.db-shm` beside it
@@ -48,7 +48,7 @@ Two images are ours; vLLM is the official image, unchanged.
 - Same GPU reservation and launch flags as [docker-compose.llm.yml](../docker-compose.llm.yml), including `--enable-force-include-usage`
 - **No `ports:`**
 - No `--api-key`. Nothing outside the Docker network can reach it, and the gateway sends no upstream key. If vLLM ever gets a published port or moves to another host, add `--api-key` and have the gateway send it in the same change
-- `VLLM_WSL2_ENABLE_PIN_MEMORY=0` on the native Linux host
+- `VLLM_WSL2_ENABLE_PIN_MEMORY=0` on the native Linux host. The production file defaults to 0; the dev file defaults to 1
 
 ### Compose and build
 
@@ -64,7 +64,10 @@ Two images are ours; vLLM is the official image, unchanged.
   ```
 
 - Images are built on the server from a git checkout: `git pull && docker compose -f docker-compose.prod.yml up -d --build`. No registry
-- Per-machine values (admin key, model, GPU memory utilization) live in the server's `.env`, not in git
+- Per-machine values (admin key, model, GPU memory utilization) live in the server's `.env`, not in git. [.env.example](../.env.example) lists them; `ADMIN_KEY` is required, `GATEWAY_DATA_DIR` defaults to `/srv/llm-gateway/data`
+- Compose project name is `llm-voucher-gateway-prod`, so it never collides with the dev project in the same checkout. On a dev box that means a separate Hugging Face cache volume, and the model downloads again
+- Caddy's config is bind-mounted from `./Caddyfile` beside the compose file. The mount uses long syntax, so a missing Caddyfile fails the start rather than being created as an empty directory
+- `depends_on` only orders startup. vLLM takes minutes to load a model; until it is ready the gateway is up but inference requests fail
 
 ### When images get built
 

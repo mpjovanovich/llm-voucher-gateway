@@ -182,7 +182,7 @@ See [vps-deployment.md](vps-deployment.md).
 
 - _COMPLETE_ — Gateway Dockerfile
 - _COMPLETE_ — Streamlit Dockerfile; pin `requirements.txt`
-- TODO — `docker-compose.prod.yml`: all four services, restart policy, log rotation, `/data` bind mount, no vLLM port
+- _COMPLETE_ — `docker-compose.prod.yml`: all four services, restart policy, log rotation, `/data` bind mount, no vLLM port. Won't start until the Caddyfile exists
 - TODO — Server `.env`
 - _COMPLETE_ — Configuration and secrets outside source control
 
@@ -252,17 +252,7 @@ A better card for this at the same price point would be an RTX 3060, w/ 12GB VRA
 
 ---
 
-## 11. Student rollout
-
-- Small-scale test with one class, where it doesn't matter if it fails
-- Setup docs per OS, and a `.env` template
-- The `openai/` model prefix gotcha, and the `OPENAI_API_KEY` collision
-
-**Done when:** a student with no setup is running in under 15 minutes without your help.
-
----
-
-## 12. Updates for VS Code integration
+## 11. Updates for VS Code integration
 
 Agent features depend on tool calling, and vLLM does not enable it by default. Need to start the server with flags such as:
 

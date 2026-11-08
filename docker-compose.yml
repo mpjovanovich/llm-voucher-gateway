@@ -1,5 +1,4 @@
-# The production stack, including the gateway service and the volume holding the SQLite
-# database file, lands in docker-compose.prod.yml in Milestone 8 — see
+# The production stack lives in docker-compose.prod.yml — see
 # planning/vps-deployment.md. The Postgres service that used to live here was removed
 # when persistence moved to SQLite — see Milestone 4 in planning/pilot-roadmap.md.
 #

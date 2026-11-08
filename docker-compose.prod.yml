@@ -1,0 +1,100 @@
+# The production stack on the GPU server. See planning/vps-deployment.md.
+#
+#   git pull && docker compose -f docker-compose.prod.yml up -d --build
+#
+# Requires the NVIDIA Container Toolkit, a Caddyfile beside this file, and a .env
+# (copy .env.example) that sets at least ADMIN_KEY. The host data directory must be
+# writable by the gateway's UID 1654: chown 1654 /srv/llm-gateway/data
+#
+# Caddy is the only public entry point. The gateway is published on host loopback
+# for admin use over SSH. vLLM has no published port and no --api-key; if it ever
+# gets either a port or another host, add --api-key and have the gateway send it.
+
+# Kept apart from the dev project in docker-compose.llm.yml, which shares this
+# directory, so bringing one up never recreates the other's containers.
+name: llm-voucher-gateway-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Long syntax, so a missing Caddyfile fails the start instead of being
+      # created as an empty directory.
+      - type: bind
+        source: ./Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+      # Certificates. Losing this re-requests them on every rebuild, which runs
+      # into Let's Encrypt rate limits.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - gateway
+      - web
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/LlmVoucherGateway.Api/Dockerfile
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # The directory, not the database file: WAL mode keeps -wal and -shm beside it.
+      - ${GATEWAY_DATA_DIR:-/srv/llm-gateway/data}:/data
+    environment:
+      - Inference__BaseUrl=http://llm-server:8000
+      - Admin__Keys__0=${ADMIN_KEY:?set ADMIN_KEY in .env}
+      - Database__Path=/data/vouchers.db
+    depends_on:
+      - llm-server
+
+  web:
+    build:
+      context: src/LlmVoucherGateway.Web
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      - GATEWAY_BASE_URL=http://gateway:8080/v1
+    depends_on:
+      - gateway
+
+  # --enable-force-include-usage is deliberately a literal: streaming metering
+  # depends on it, so it is not a per-machine choice.
+  llm-server:
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.29.0}
+    restart: unless-stopped
+    logging: *logging
+    ipc: host
+    volumes:
+      - huggingface-cache:/root/.cache/huggingface
+    environment:
+      - VLLM_WSL2_ENABLE_PIN_MEMORY=${VLLM_WSL2_ENABLE_PIN_MEMORY:-0}
+    command: >
+      --model ${VLLM_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
+      --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:-0.85}
+      --enable-force-include-usage
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${VLLM_GPU_COUNT:-1}
+              capabilities: [gpu]
+
+volumes:
+  caddy-data:
+  caddy-config:
+  huggingface-cache:
