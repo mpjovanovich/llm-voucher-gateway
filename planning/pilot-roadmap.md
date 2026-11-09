@@ -1,5 +1,7 @@
 # Pilot Roadmap
 
+_This file holds work in progress developer documentation, not finished product documentation._
+
 Each milestone ends in something demonstrable. Ordering favors killing unknowns early over building in layers.
 
 This is a temporary working document. Settled detail lives in the code and tests; this keeps status, decisions whose reasoning the code can't show, and the open work.
@@ -178,40 +180,118 @@ _Complete_ — see [vps-deployment.md](vps-deployment.md)
 
 See [vps-deployment.md](vps-deployment.md).
 
-**Packaging**
+Small scale hardware confirmed:
 
-- _COMPLETE_ — Gateway Dockerfile
-- _COMPLETE_ — Streamlit Dockerfile; pin `requirements.txt`
-- _COMPLETE_ — `docker-compose.prod.yml`: all four services, restart policy, log rotation, `/data` bind mount, no vLLM port. Won't start until the Caddyfile exists
-- TODO — Server `.env`
-- _COMPLETE_ — Configuration and secrets outside source control
-
-**Proxy and access**
-
-- TODO — Caddyfile, DNS, certificates
-- TODO — Forwarded headers on the gateway
-- TODO — Re-prove unbuffered streaming through Caddy
-- TODO — `GATEWAY_URL` in the Makefile `api-*` targets
-
-**Logging**
-
-- TODO — Request logging with client address
-- TODO — Correlation ID per request
-- TODO — Rolling JSON file sink in `/data/logs`, 30 days
-- TODO — Check that Caddy and vLLM logs hold no keys or prompt text
-
-**Database**
-
-- TODO — Backup cron
-- TODO — sqlite-web under the `tools` profile
-
-**Health and errors**
-
-- TODO — `/health`, checking vLLM reachability
-- TODO — Unhandled exceptions on `/v1` return OpenAI-shaped errors (currently ProblemDetails)
-- TODO — "It's down, what now" procedure
+```
+GeForce RTX 5060 8GB vRAM
+64GB RAM on host machine
+```
 
 **Done when:** the server reboots and comes back without intervention, and a harness streams through `https://llm.example.edu/v1`.
+
+_COMPLETE_ — Gateway and Streamlit Dockerfiles, pinned `requirements.txt`, `docker-compose.prod.yml`, secrets kept out of git.
+
+Bring the stack up one service at a time, inside out, so each failure has one suspect. Each step ends in a check you can run. After the first deploy, every change ships the same way: commit and push, then on the server run `git pull && docker compose -f docker-compose.prod.yml up -d --build`.
+
+All `docker compose` commands below mean `docker compose -f docker-compose.prod.yml ...`, run from the checkout on the server. Services with no published port are reached from a throwaway container on the stack's network:
+
+```
+docker run --rm --network llm-voucher-gateway-prod_default curlimages/curl -sS <url>
+```
+
+### 8a. Server ready
+
+- Install Docker and the NVIDIA Container Toolkit. `sudo systemctl enable docker`, so Docker starts on boot
+- Firewall: allow SSH **before** turning `ufw` on, then 80 and 443
+- Clone the repo. Create the data directory: `sudo mkdir -p /srv/llm-gateway/data && sudo chown 1654 /srv/llm-gateway/data`
+- Server `.env`: `cp .env.example .env`, then set `ADMIN_KEY` (`openssl rand -base64 32`), the model, GPU memory utilization, and `VLLM_WSL2_ENABLE_PIN_MEMORY=0`. `chmod 600 .env`
+
+**Verify:** `docker run --rm --gpus all ubuntu nvidia-smi` shows the GPU, and `docker compose config --quiet` prints nothing.
+
+### 8b. vLLM, inside the box only
+
+- `docker compose up -d llm-server`, then `docker compose logs -f llm-server` until it reports the server is listening. The first start downloads the model and takes a while
+
+**Verify:**
+
+- Reachable on the Docker network: the throwaway curl against `http://llm-server:8000/v1/models` lists the model
+- Not reachable from the host: `curl localhost:8000` is refused
+
+### 8c. Gateway, on host loopback
+
+- Makefile first: replace the hardcoded `localhost:5131` and `dev-admin-key` in the `api-*` targets with `GATEWAY_URL` and `ADMIN_KEY`, defaulting to the dev values. The Makefile already reads `.env`, so adding `GATEWAY_URL=http://localhost:8080` to the server's `.env` points the same targets at production
+- `docker compose up -d --build gateway`
+
+**Verify:**
+
+- `make api-mint-voucher` returns a voucher, and `make api-check-completion-streaming key=...` streams a reply
+- `/srv/llm-gateway/data/vouchers.db` exists on the host
+- `docker compose restart gateway`, then the same voucher still works. That proves the database survives the container
+- From another machine, `curl http://<server-ip>:8080` fails
+
+### 8d. Caddy, DNS and HTTPS
+
+- DNS: A records for both hostnames pointing at the server, **grey cloud (DNS only)** in Cloudflare
+- Write `Caddyfile` from [vps-deployment.md](vps-deployment.md#reverse-proxy), then `docker compose up -d --build`. This also starts `web`, which has had nothing to test it through until now
+
+**Verify:**
+
+- From your laptop, `curl https://llm.example.edu/v1/models` returns the OpenAI-shaped `401`, with no certificate warning
+- `https://chat.example.edu` in a browser: a voucher pasted into the sidebar lists the model, and a chat streams
+
+### 8e. Streaming through Caddy
+
+- Re-run Milestone 3's per-chunk timing against `https://llm.example.edu/v1`
+- Point Aider at the same URL and run a small task
+
+**Verify:** chunks arrive spread out over the generation, not all at once at the end. Aider completes a task. This and 8j are the milestone's "Done when".
+
+### 8f. Real client addresses and request logs
+
+Code change, tested locally, then deployed.
+
+- `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` in the gateway's `environment`
+- One log line per request with method, path, status, duration and client address (Serilog request logging)
+- A correlation ID on every log line from the same request
+
+**Verify:** `docker compose logs gateway` after a request from your laptop shows your public IP, not a `172.x` Docker address, and its lines share one correlation ID.
+
+### 8g. Logs that outlive containers
+
+- File sink to `/data/logs`, compact JSON, rolled daily, 30 days kept
+- Read Caddy's and vLLM's logs after a few real requests and confirm neither contains a voucher key, an `Authorization` header or prompt text
+
+**Verify:** a file appears in `/srv/llm-gateway/data/logs/`, still has its lines after `docker compose up -d --build` recreates the gateway, and `jq` can read it.
+
+### 8h. Database backups and ad-hoc access
+
+- Daily host cron running `sqlite3 ... ".backup ..."`, per [vps-deployment.md](vps-deployment.md#database)
+- sqlite-web as a Compose service under `profiles: [tools]`, published on `127.0.0.1:8081` only
+
+**Verify:**
+
+- Run the backup by hand once, then `sqlite3 <backup> "select count(*) from Vouchers"` returns the live count. A backup isn't proven until it has been read back
+- Through `ssh -L 8081:localhost:8081 server`, `http://localhost:8081` on your laptop shows the tables
+
+### 8i. Health and error shape
+
+Code change, tested locally, then deployed.
+
+- `/health`: `200` when the gateway can reach vLLM, `503` when it can't
+- Unhandled exceptions on `/v1` return the OpenAI error shape instead of ProblemDetails
+
+**Verify:** `curl localhost:8080/health` returns `200`. After `docker compose stop llm-server` it returns `503`, and after `start` it returns `200` again.
+
+### 8j. Reboot, and the "it's down" page
+
+- `sudo reboot`
+- Write a short runbook in [vps-deployment.md](vps-deployment.md) for when it's down: which of `docker compose ps`, `/health`, and the logs for each service to check, in what order, and how to restart one service
+
+**Verify:** after the reboot, with no manual steps, `docker compose ps` shows all four services running, and 8e's streaming check passes again.
+
+### Post-milestone considerations
+
+We will not have done any load testing when this first goes out; this is fine for a pilot with a small number of users. Appropriate settings are to be determined in milestone 10.
 
 ---
 
@@ -221,28 +301,23 @@ See [vps-deployment.md](vps-deployment.md).
 - Expiry checked at request time (already enforced by 6e)
 - `GET /admin/sections/{id}/vouchers` — status and consumption
 - Issuance alert (email or webhook)
+- Friendly API documentation (README in API project - link from root README)
 
 **Done when:** the withdrawal use case works end to end, and revocation takes effect on the next request.
 
 ## 10. Real model and load test
 
+(Optional)
+
 Requires live vLLM on real hardware.
 
-- Swap to a real coder model (a colleague has a GX10, which is arm64, so verify the container images)
 - Script N concurrent agentic sessions: full tool loops with long contexts, not chat requests
 - Measure time to first token, throughput, and where it degrades
 - Settle model, quantization, `--max-model-len`, `--gpu-memory-utilization`
 - Re-pull `/openapi.json` if the vLLM version changed, and diff it against the committed copy
 - Revisit the no-cache decision and any concurrency caps against real numbers
 
-**Done when:** you have a defensible concurrency number for the hardware proposal.
-
-Small scale hardware confirmed:
-
-```
-GeForce RTX 5060 8GB vRAM
-64GB RAM on host machine
-```
+**Done when:** load tests on current hardware have been documented.
 
 _Proposed model_: Qwen3.5-9B
 
