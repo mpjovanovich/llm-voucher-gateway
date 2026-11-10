@@ -41,7 +41,7 @@ Budgeting enforcement is checked before calls are forwarded to vLLM. If no budge
 1. LLM Gateway API passes request through to vLLM.
 1. vLLM Returns response, which is passed through unchanged to the client. Usage for the voucher is updated.
 
-Users never hit vLLM directly. All requests flow through the Gateway API. This solution focuses on minimal complexity by minting vouchers that have no PII associated with them.
+Users never hit vLLM directly. All requests flow through the Gateway API. This solution prioritizes minimal complexity by minting vouchers that have no PII associated with them.
 
 ### Limitations
 
