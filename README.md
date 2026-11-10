@@ -36,7 +36,7 @@ Budgeting enforcement is checked before calls are forwarded to vLLM. If no budge
 
 1. Admin requests vouchers for users using the Gateway's admin API.
 1. Admin gives voucher to user.
-1. User plugs in vouchers to OpenAI compatible software and initiates a request.
+1. User plugs in voucher to OpenAI compatible software and initiates a request.
 1. LLM Gateway API checks remaining balance, only proceeding if user's token limit is not exceeded.
 1. LLM Gateway API passes request through to vLLM.
 1. vLLM Returns response, which is passed through unchanged to the client. Usage for the voucher is updated.
