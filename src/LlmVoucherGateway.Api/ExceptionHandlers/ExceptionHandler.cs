@@ -1,18 +1,26 @@
+using LlmVoucherGateway.Api.Errors;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LlmVoucherGateway.Api.ExceptionHandlers;
 
 /// <summary>
-/// Translates unhandled exceptions into ProblemDetails responses. Endpoints let domain
-/// rules throw rather than pre-checking them, so this is the single place a rule
-/// violation becomes a status code.
+/// Translates unhandled exceptions into error responses. Endpoints let domain rules
+/// throw rather than pre-checking them, so this is the single place a rule violation
+/// becomes a status code.
 /// </summary>
+/// <remarks>
+/// The body depends on who is calling. Paths under <c>/v1</c> are called by a harness,
+/// which understands the OpenAI error envelope and nothing else; everything else is
+/// called by an operator and gets ProblemDetails.
+/// </remarks>
 internal sealed class ExceptionHandler(
     IProblemDetailsService problemDetailsService,
     ILogger<ExceptionHandler> logger
 ) : IExceptionHandler
 {
+    private const string OpenAiPathPrefix = "/v1";
+
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
         Exception exception,
@@ -23,6 +31,22 @@ internal sealed class ExceptionHandler(
             httpContext.Request.Method, httpContext.Request.Path);
 
         ExceptionDetails exceptionDetails = GetExceptionDetails(exception);
+
+        if (httpContext.Request.Path.StartsWithSegments(OpenAiPathPrefix))
+        {
+            // Same reason as the ProblemDetails branch below: once a stream is under
+            // way there is nowhere to put an error body, so let the framework abort.
+            if (httpContext.Response.HasStarted)
+            {
+                return false;
+            }
+
+            await OpenAiErrorResults
+                .UnhandledFailure(exceptionDetails.Status, exceptionDetails.Detail)
+                .ExecuteAsync(httpContext);
+
+            return true;
+        }
 
         ProblemDetails problemDetails = new()
         {

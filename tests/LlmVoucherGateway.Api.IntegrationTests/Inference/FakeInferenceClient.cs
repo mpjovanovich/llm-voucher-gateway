@@ -37,6 +37,11 @@ internal sealed class FakeInferenceClient : IInferenceClient
     /// </summary>
     public ScriptedResponse? ChatCompletionResponse { get; set; }
 
+    /// <summary>
+    /// Thrown instead of answering, for an upstream that cannot be reached at all.
+    /// </summary>
+    public Exception? Fault { get; set; }
+
     public async Task<InferenceResponse> CreateChatCompletionAsync(
         Stream requestBody,
         CancellationToken cancellationToken
@@ -46,6 +51,11 @@ internal sealed class FakeInferenceClient : IInferenceClient
         string request = await reader.ReadToEndAsync(cancellationToken);
 
         ForwardedRequests.Add(request);
+
+        if (Fault is not null)
+        {
+            throw Fault;
+        }
 
         if (ChatCompletionResponse is ScriptedResponse scripted)
         {
@@ -86,6 +96,11 @@ internal sealed class FakeInferenceClient : IInferenceClient
     public Task<InferenceResponse> ListModelsAsync(CancellationToken cancellationToken)
     {
         ListModelsCalls++;
+
+        if (Fault is not null)
+        {
+            throw Fault;
+        }
 
         // InferenceResponse owns the message and disposes it, which CA2000 cannot see
         // across the constructor.

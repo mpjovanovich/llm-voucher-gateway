@@ -281,10 +281,10 @@ Code change, tested locally, then deployed. **TODO — not started.**
 
 ### 8i. Health and error shape
 
-Code change, tested locally, then deployed. **TODO — not started.**
+Code change, tested locally, then deployed. **Error shape done; `/health` not started.**
 
 - TODO — `/health`: `200` when the gateway can reach vLLM, `503` when it can't. A health check that probes the upstream
-- TODO — Unhandled exceptions on `/v1` return the OpenAI error shape instead of ProblemDetails. A branch in the exception handler, which currently always writes `ProblemDetails`, so `/v1` paths leave through `OpenAiErrorResults`. This half is the one with harness consequences
+- _COMPLETE_ — Unhandled exceptions on `/v1` return the OpenAI error shape instead of ProblemDetails; admin routes keep ProblemDetails. See [ExceptionHandler.cs](../src/LlmVoucherGateway.Api/ExceptionHandlers/ExceptionHandler.cs) and [UnhandledExceptionShapeTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Errors/UnhandledExceptionShapeTests.cs)
 
 **Verify:** `curl localhost:8080/health` returns `200`. After `docker compose stop llm-server` it returns `503`, and after `start` it returns `200` again.
 
