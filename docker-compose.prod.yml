@@ -111,6 +111,10 @@ services:
     image: ghcr.io/coleifer/sqlite-web:0.8.2
     command: vouchers.db
     profiles: [tools]
+    # The image declares no user, and SQLite recreates vouchers.db-wal and -shm
+    # whenever the last connection closes. If these are created by root it will
+    # leave the gateway (UID 1654) unable to write! This must be here.
+    user: "1654"
     # This is an "as needed" tool, so don't restart
     restart: "no"
     logging: *logging
