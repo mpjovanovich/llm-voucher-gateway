@@ -19,10 +19,9 @@ services:
     volumes:
       - huggingface-cache:/root/.cache/huggingface
     environment:
-      # WSL2 kernel supports pinned memory (needed for vLLM's UVA buffers)
-      # but vLLM keeps it opt-in on WSL2 by default; enable it explicitly.
-      # Set to 0 on a native Linux host.
-      - VLLM_WSL2_ENABLE_PIN_MEMORY=${VLLM_WSL2_ENABLE_PIN_MEMORY:-1}
+      # vLLM keeps pinned memory (needed for its UVA buffers) opt-in on WSL2.
+      # Set to 1 in .env on a WSL2 box; a native Linux host needs nothing.
+      - VLLM_WSL2_ENABLE_PIN_MEMORY=${VLLM_WSL2_ENABLE_PIN_MEMORY:-0}
     command: >
       --model ${VLLM_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
       --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:-0.85}

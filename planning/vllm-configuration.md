@@ -15,7 +15,7 @@ Defaults stay the current literals. `make run-llm` with no `.env` behaves as it 
 | `VLLM_GPU_MEMORY_UTILIZATION` | `0.85` | `--gpu-memory-utilization` |
 | `VLLM_GPU_COUNT` | `1` | `deploy.resources.reservations.devices[].count` |
 | `VLLM_PORT` | `8000` | Host side of `ports`. The process inside the container keeps listening on 8000. |
-| `VLLM_WSL2_ENABLE_PIN_MEMORY` | `1` | Container environment variable of the same name. `1` on the WSL2 dev box, `0` on a Linux host. |
+| `VLLM_WSL2_ENABLE_PIN_MEMORY` | `0` | Container environment variable of the same name. `1` on a WSL2 dev box, `0` on a Linux host. |
 
 `--enable-force-include-usage` stays a literal. Metering depends on it.
 

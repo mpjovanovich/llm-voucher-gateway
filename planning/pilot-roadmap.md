@@ -176,30 +176,24 @@ _COMPLETE_ — see [vps-deployment.md](vps-deployment.md)
 - _COMPLETE_ — Log access
 - _COMPLETE_ — When container images get built: Milestone 8
 
+## 7.7 Simplify launch configuration
+
+TODO: work in progress. Contract set by env example file; figure out what commands run where for dev vs prod; etc.
+
 ---
 
 ## 8. Deployment and operational readiness
 
 See [vps-deployment.md](vps-deployment.md).
 
-Small scale hardware confirmed:
+Note - Small scale hardware confirmed:
 
 ```
 GeForce RTX 5060 8GB vRAM
 64GB RAM on host machine
 ```
 
-**Done when:** the server reboots and comes back without intervention, and a harness streams through `https://llm.example.edu/v1`.
-
-_COMPLETE_ — Gateway and Streamlit Dockerfiles, pinned `requirements.txt`, `docker-compose.prod.yml`, secrets kept out of git.
-
-Bring the stack up one service at a time, inside out, so each failure has one suspect. Each step ends in a check you can run. After the first deploy, every change ships the same way: commit and push, then on the server run `git pull && docker compose -f docker-compose.prod.yml up -d --build`.
-
-All `docker compose` commands below mean `docker compose -f docker-compose.prod.yml ...`, run from the checkout on the server. Services with no published port are reached from a throwaway container on the stack's network:
-
-```
-docker run --rm --network llm-voucher-gateway-prod_default curlimages/curl -sS <url>
-```
+Bring the stack up one service at a time, inside out, so each failure has one suspect. Components for production server are listed below. These are the sub-milestones.
 
 ### 8a. Server ready
 

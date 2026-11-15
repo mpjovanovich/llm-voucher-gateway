@@ -48,7 +48,7 @@ Two images are ours; vLLM is the official image, unchanged.
 - Same GPU reservation and launch flags as [docker-compose.llm.yml](../docker-compose.llm.yml), including `--enable-force-include-usage`
 - **No `ports:`**
 - No `--api-key`. Nothing outside the Docker network can reach it, and the gateway sends no upstream key. If vLLM ever gets a published port or moves to another host, add `--api-key` and have the gateway send it in the same change
-- `VLLM_WSL2_ENABLE_PIN_MEMORY=0` on the native Linux host. The production file defaults to 0; the dev file defaults to 1
+- `VLLM_WSL2_ENABLE_PIN_MEMORY=0` on the native Linux host, which is what both compose files default to. A WSL2 dev box is the one that sets it to 1, in its own `.env`
 
 ### Compose and build
 
