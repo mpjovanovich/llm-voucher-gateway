@@ -157,4 +157,4 @@ The gateway already never logs keys, `Authorization` headers, or bodies. Two oth
   sqlite3 /srv/llm-gateway/data/vouchers.db ".backup /mnt/backup/vouchers-$(date +%F).db"
   ```
 
-- **Ad-hoc queries:** sqlite-web as a Compose service under `profiles: [tools]`, published on `127.0.0.1` only, reached with `ssh -L 8081:localhost:8081 server`. Started only when needed: `docker compose --profile tools up -d sqlite-web`
+- **Ad-hoc queries:** `ghcr.io/coleifer/sqlite-web:0.8.2` as a Compose service under `profiles: [tools]`, published on `127.0.0.1:8081` only, reached with `ssh -L 8081:localhost:8081 server`. Started only when needed, and stopped after: `docker compose --profile tools up -d sqlite-web`, then `docker compose --profile tools down`. It has no authentication of its own - just uses SSH.

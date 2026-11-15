@@ -100,6 +100,25 @@ services:
               count: 1
               capabilities: [gpu]
 
+  # Ad-hoc database browsing
+  # Start/stop:
+  #   docker compose -f docker-compose.prod.yml --profile tools up -d sqlite-web
+  #   docker compose -f docker-compose.prod.yml --profile tools down
+  # Remote browse
+  #   ssh -L 8081:localhost:8081 <server>
+  #   then http://localhost:8081
+  sqlite-web:
+    image: ghcr.io/coleifer/sqlite-web:0.8.2
+    command: vouchers.db
+    profiles: [tools]
+    # This is an "as needed" tool, so don't restart
+    restart: "no"
+    logging: *logging
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - ${GATEWAY_DATA_DIR:-/srv/llm-gateway/data}:/data
+
 volumes:
   caddy-data:
   caddy-config:
