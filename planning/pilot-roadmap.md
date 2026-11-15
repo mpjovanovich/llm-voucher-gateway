@@ -178,55 +178,7 @@ _COMPLETE_ — see [vps-deployment.md](vps-deployment.md)
 
 ## 7.7 Simplify launch configuration
 
-_Complete_ — see [vllm-configuration.md](../docs/configuration/vllm-configuration.md)
-
-- [.env.example](../.env.example) is the contract: the list of what a machine decides, and the only place it gets set. `VLLM_MODEL`, `VLLM_GPU_MEMORY_UTILIZATION` and (in production) `ADMIN_KEY` are required, so compose stops with a message naming the variable instead of falling back to a dev value
-- Defaults only where the value is not an opinion: `VLLM_PORT=8000` is the port vLLM listens on inside its container, and `VLLM_WSL2_ENABLE_PIN_MEMORY=0` is what a native Linux host wants. The duplicate default layers in the Makefile and the compose files are gone
-- Literals, because none is a per-machine choice: the pinned image tag, `--enable-force-include-usage`, `count: 1` for GPUs, and the in-container addresses
-- Both environments start from the [Makefile](../Makefile), so one file answers "how does everything start": dev is `run-llm`, `run-api`, `run-web`; production is `deploy`, `run-prod`, `down-prod`, `ps-prod`, `logs-prod service=<name>`. The production targets add the `-f` flag and nothing else
-- `make run-api` derives `Inference__BaseUrl` from `VLLM_PORT`, so changing the port cannot leave the gateway dialing a port vLLM was not published on
-
-## 7.7 Remaining config items so that they can be removed from below sections
-
-### A. Config only — no code change, doable now off-GPU
-
-| #             | Item                                                | Where it lands                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1 _COMPLETE_ | Forwarded headers + explicit environment (8f, part) | Two lines in the gateway's `environment:` in `docker-compose.prod.yml`: `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` and `ASPNETCORE_ENVIRONMENT=Production` (currently relying on the image default). This is the host-level switch, so no `Program.cs` change — and it retires the floating comment at `VoucherIssuanceEndpoint.cs:44`                                                                                                                                           |
-| A2 _COMPLETE_ | Durable file logs (8g)                              | A new `appsettings.Production.json` with a `WriteTo` File sink (`/data/logs/gateway-.log`, daily, 30 kept, `CompactJsonFormatter`). I verified the packages are already in the graph transitively via `Serilog.AspNetCore`: `Serilog.Sinks.File/7.0.0` and `Serilog.Formatting.Compact/3.0.0`. Zero code, zero new packages. A separate Production file rather than `appsettings.json` because a `WriteTo` array can't be un-set by an override, and the dev host has no `/data`. See [appsettings.Production.json](../src/LlmVoucherGateway.Api/appsettings.Production.json) |
-| A3 _COMPLETE_ | Makefile `GATEWAY_URL` + `ADMIN_KEY` (8c)           | The `api-*` targets hardcode `localhost:5131` and `dev-admin-key`. Add `GATEWAY_URL ?= http://localhost:5131` and take `ADMIN_KEY` from `.env`. To avoid a second copy of the dev key, `run-api` should inject `Admin__Keys__0=$(ADMIN_KEY)` the same way it now injects `Inference__BaseUrl` — `appsettings.Development.json` keeps `dev-admin-key` for the IDE path. Injected only when `.env` sets it — empty, it would override the Development key with nothing and break admin auth on a box that never needed a key. `api-mint-voucher` gained a `require-admin-key` guard rather than a fallback, so there is no second copy of the dev key                                                                                                            |
-| A4 _COMPLETE_ | Caddyfile (8d)                                      | Doesn't exist yet; content is already written out in `vps-deployment.md`. Worth adding with `{$LLM_HOSTNAME}` / `{$CHAT_HOSTNAME}` / `{$ACME_EMAIL}` rather than literal hostnames — Caddy does parse-time `{$VAR}` substitution — plus an `environment:` block on the `caddy` service to pass them in. That keeps the institution's real hostnames in `.env` instead of git, which is the same test everything else passed. Done: [Caddyfile](../Caddyfile), all three variables required by compose. **`caddy validate` has not been run** - this dev box has no Docker daemon; run it as the first step of 8d                                                      |
-| A5 _COMPLETE_ | sqlite-web (8h)                                     | A service under `profiles: [tools]`, pinned tag, published on `127.0.0.1:8081` only, mounting the data volume. Pure compose. Done: `ghcr.io/coleifer/sqlite-web:0.8.2` - ghcr, not Docker Hub, is where version tags are published, and the database is a command argument rather than an env var. **Not yet run** - no Docker daemon on this box                                                                                                                                                                                                                                                                                                                                                      |
-| A6 _COMPLETE_ | Web UI timeouts                                     | `app.py:44` hardcodes `timeout=60, max_retries=1`. `MAX_FILE_CHARS` and `MAX_HISTORY_CHARS` are already env-driven but absent from `.env.example`. Done: all four are env-driven through an `_env_int` helper, with `GATEWAY_TIMEOUT_SECONDS` defaulting to 300 and `GATEWAY_MAX_RETRIES` to 1. **The flagged conflict with `vps-deployment.md` was a misreading on my part**: httpx applies `timeout` as a read timeout, reset by every streamed chunk, so it bounds how long the server may go silent rather than total generation time. What it actually guards is time to first token on a cold model. The helper exists because compose passes an empty string for an unset variable and `int("")` raises, which keeps the defaults in `app.py` alone                                                                                                                                                  |
-
-### B. Config, but needs a live GPU to verify
-
-- _COMPLETE_ — **`VLLM_MAX_MODEL_LEN` (Milestone 10)** — a required `.env` variable feeding `--max-model-len` in both compose files. Verified on the dev box (RTX 3060 12GB, `Qwen/Qwen2.5-0.5B-Instruct`): an override of `8192` showed up as `max_model_len` in `GET /v1/models`, and the `.env` value of `32768` after a restart. The right value for the 8GB production card and the real model is still Milestone 10's to settle.
-- **Tool calling (Milestone 11)** — `--enable-auto-tool-choice --tool-call-parser <parser>`. I'd leave these out. The parser name is a function of the model, so the two move with `VLLM_MODEL`, and the roadmap already says a harness sending tools is a return trip to Milestone 1 for a re-capture. Also flagging a contradiction: roadmap Milestone 11 lists `--api-key <shared-or-per-student-key>`, while `vps-deployment.md:50` deliberately decides against an upstream key. One of those should change.
-
-### C. Needs real code — noting only, per your instruction
-
-- **Request logging with a correlation ID (8f, rest)** — `UseSerilogRequestLogging()` is one line, but the correlation ID needs a middleware or enricher plus an `appsettings` template. Small-to-moderate.
-- **`/health` and OpenAI-shaped unhandled errors (8i)** — a health check that probes the upstream, and a branch in `ExceptionHandler.cs` so `/v1` paths leave through `OpenAiErrorResults` instead of `ProblemDetails`. It currently always writes `ProblemDetails`. Moderate, and the error-shape half is the one with harness consequences.
-- **Issuance alert (Milestone 9)** — would introduce a new config surface (SMTP or webhook URL). Don't invent it before the feature.
-
-### Housekeeping found along the way
-
-- _COMPLETE_ — Stale links from the `docs/` move. It was **24 broken links, not seven**: the move also broke the links _inside_ the moved files, which kept their repo-root depth, so `docs/api_documentation/` and `docs/configuration/` were pointing at `docs/docker-compose.llm.yml`, `docs/src/...` and the like. Two targets no longer existed under any path — `streaming-usage.md` and `streaming-response-forced-usage.md` were merged into [chat-completions.md](../docs/api_documentation/chat-completions/chat-completions.md), which both now point at. Prose mentions in `OpenAiError.cs` and the `.http` file are `docs/`-prefixed too. All 73 relative links in the repo's markdown now resolve
-- _COMPLETE_ — `GATEWAY_BASE_URL` set twice. The `ENV` line is gone from the Web Dockerfile; the prod compose `environment:` is the one home, and `make run-web` keeps `app.py`'s dev default
-- The `.http` file's `@baseUrl`/`@adminKey` can't read `.env`, so those stay hardcoded. Fine, just don't count it as drift.
-
-### Recommended sequencing
-
-1. ~~**A3** (Makefile `GATEWAY_URL`/`ADMIN_KEY`)~~ — _done_.
-2. ~~**A1** (two compose env lines)~~ — _done_.
-3. ~~**A2** (`appsettings.Production.json`)~~ — _done_. `Console` is repeated at index 0 because configuration merges arrays by index: a Production file starting with the File sink would replace the console sink, not add to it, and `docker compose logs gateway` would go quiet.
-4. ~~**A4** (Caddyfile + hostname variables)~~ — _done_, except `caddy validate`, which needs a Docker daemon.
-5. ~~**A5** (sqlite-web)~~ and ~~**A6** (web timeouts)~~ — _done_.
-6. ~~**Housekeeping links**~~ — _done_.
-7. ~~**B** (`VLLM_MAX_MODEL_LEN`)~~ — _done_ on the dev GPU box.
-
-After 1–6, every per-machine value lives in `.env` and no literal in a compose file or `appsettings` is a machine choice. That's the point where you can call configuration done: what's left in Milestone 8 is behind the two code items in group C, and the remaining milestone references in comments are about features, not configuration.
+_Complete_ — every per-machine value lives in `.env`, and [.env.example](../.env.example) is the list. See [vllm-configuration.md](../docs/configuration/vllm-configuration.md).
 
 ---
 
@@ -257,7 +209,7 @@ Every `docker compose` command below means `docker compose -f docker-compose.pro
 - Install Docker and the NVIDIA Container Toolkit. `sudo systemctl enable docker`, so Docker starts on boot
 - Firewall: allow SSH **before** turning `ufw` on, then 80 and 443
 - Clone the repo. Create the data directory: `sudo mkdir -p /srv/llm-gateway/data && sudo chown 1654 /srv/llm-gateway/data`
-- Server `.env`: `cp .env.example .env`, then set `ADMIN_KEY` (`openssl rand -base64 32`), `VLLM_MODEL` and `VLLM_GPU_MEMORY_UTILIZATION` for this hardware. Compose refuses to start until all three are set. The pinned-memory switch defaults to 0, which is what this host wants. `chmod 600 .env`
+- Server `.env`: `cp .env.example .env`, then set `ADMIN_KEY` (`openssl rand -base64 32`), `LLM_HOSTNAME`, `CHAT_HOSTNAME`, `ACME_EMAIL`, and `VLLM_MODEL`, `VLLM_GPU_MEMORY_UTILIZATION` and `VLLM_MAX_MODEL_LEN` for this hardware. Compose refuses to start until all of them are set. Add `GATEWAY_URL=http://localhost:8080` so the Makefile's `api-*` targets hit the production container. The pinned-memory switch defaults to 0, which is what this host wants. `chmod 600 .env`
 
 **Verify:** `docker run --rm --gpus all ubuntu nvidia-smi` shows the GPU, and `docker compose config --quiet` prints nothing.
 
@@ -272,7 +224,7 @@ Every `docker compose` command below means `docker compose -f docker-compose.pro
 
 ### 8c. Gateway, on host loopback
 
-- Makefile first: replace the hardcoded `localhost:5131` and `dev-admin-key` in the `api-*` targets with `GATEWAY_URL` and `ADMIN_KEY`, defaulting to the dev values. The Makefile already reads `.env`, so adding `GATEWAY_URL=http://localhost:8080` to the server's `.env` points the same targets at production
+- The Makefile's `api-*` targets read `GATEWAY_URL` and `ADMIN_KEY` from `.env` (set in 8a)
 - `docker compose up -d --build gateway`
 
 **Verify:**
@@ -285,7 +237,8 @@ Every `docker compose` command below means `docker compose -f docker-compose.pro
 ### 8d. Caddy, DNS and HTTPS
 
 - DNS: A records for both hostnames pointing at the server, **grey cloud (DNS only)** in Cloudflare
-- Write `Caddyfile` from [vps-deployment.md](vps-deployment.md#reverse-proxy), then `docker compose up -d --build`. This also starts `web`, which has had nothing to test it through until now
+- The [Caddyfile](../Caddyfile) is written but **`caddy validate` has never been run**. Run it first: `docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile`
+- `docker compose up -d --build`. This also starts `web`, which has had nothing to test it through until now
 
 **Verify:**
 
@@ -301,17 +254,17 @@ Every `docker compose` command below means `docker compose -f docker-compose.pro
 
 ### 8f. Real client addresses and request logs
 
-Code change, tested locally, then deployed.
+Code change, tested locally, then deployed. **TODO — not started.**
 
-- `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` in the gateway's `environment`
-- One log line per request with method, path, status, duration and client address (Serilog request logging)
-- A correlation ID on every log line from the same request
+- _COMPLETE_ — `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` in the gateway's `environment`
+- TODO — One log line per request with method, path, status, duration and client address. `UseSerilogRequestLogging()` is the one-line part
+- TODO — A correlation ID on every log line from the same request. Needs a middleware or enricher, plus the property in the `appsettings` output template
 
 **Verify:** `docker compose logs gateway` after a request from your laptop shows your public IP, not a `172.x` Docker address, and its lines share one correlation ID.
 
 ### 8g. Logs that outlive containers
 
-- File sink to `/data/logs`, compact JSON, rolled daily, 30 days kept
+- _COMPLETE_ (written, unrun) — File sink to `/data/logs`, compact JSON, rolled daily, 30 days kept, in [appsettings.Production.json](../src/LlmVoucherGateway.Api/appsettings.Production.json). `Console` is repeated there at index 0 on purpose: configuration merges arrays by index, so a file starting with the File sink would replace the console sink and `docker compose logs gateway` would go quiet
 - Read Caddy's and vLLM's logs after a few real requests and confirm neither contains a voucher key, an `Authorization` header or prompt text
 
 **Verify:** a file appears in `/srv/llm-gateway/data/logs/`, still has its lines after `docker compose up -d --build` recreates the gateway, and `jq` can read it.
@@ -319,7 +272,7 @@ Code change, tested locally, then deployed.
 ### 8h. Database backups and ad-hoc access
 
 - Daily host cron running `sqlite3 ... ".backup ..."`, per [vps-deployment.md](vps-deployment.md#database)
-- _COMPLETE_ (written, unrun) — sqlite-web as a Compose service under `profiles: [tools]`, published on `127.0.0.1:8081` only
+- _COMPLETE_ (written, unrun) — sqlite-web as a Compose service under `profiles: [tools]`, published on `127.0.0.1:8081` only. Start it with `--profile tools`; the commands are in the compose file
 
 **Verify:**
 
@@ -328,10 +281,10 @@ Code change, tested locally, then deployed.
 
 ### 8i. Health and error shape
 
-Code change, tested locally, then deployed.
+Code change, tested locally, then deployed. **TODO — not started.**
 
-- `/health`: `200` when the gateway can reach vLLM, `503` when it can't
-- Unhandled exceptions on `/v1` return the OpenAI error shape instead of ProblemDetails
+- TODO — `/health`: `200` when the gateway can reach vLLM, `503` when it can't. A health check that probes the upstream
+- TODO — Unhandled exceptions on `/v1` return the OpenAI error shape instead of ProblemDetails. A branch in the exception handler, which currently always writes `ProblemDetails`, so `/v1` paths leave through `OpenAiErrorResults`. This half is the one with harness consequences
 
 **Verify:** `curl localhost:8080/health` returns `200`. After `docker compose stop llm-server` it returns `503`, and after `start` it returns `200` again.
 
@@ -353,7 +306,7 @@ We will not have done any load testing when this first goes out; this is fine fo
 - `POST /admin/vouchers/{id}/revoke` — status flag with reason (`Voucher.Revoke()` exists; the reason does not yet)
 - Expiry checked at request time (already enforced by 6e)
 - `GET /admin/sections/{id}/vouchers` — status and consumption
-- Issuance alert (email or webhook)
+- Issuance alert (email or webhook). Brings a new config surface (SMTP settings or a webhook URL) into `.env`; don't add it before the feature
 - Friendly API documentation (README in API project - link from root README)
 
 **Done when:** the withdrawal use case works end to end, and revocation takes effect on the next request.
@@ -366,7 +319,7 @@ Requires live vLLM on real hardware.
 
 - Script N concurrent agentic sessions: full tool loops with long contexts, not chat requests
 - Measure time to first token, throughput, and where it degrades
-- Settle model, quantization, `--max-model-len`, `--gpu-memory-utilization`
+- Settle model, quantization, `VLLM_MAX_MODEL_LEN`, `VLLM_GPU_MEMORY_UTILIZATION`. Both are already `.env` variables; only the values for the 8GB card are open, since `--max-model-len` decides whether the KV cache fits
 - Re-pull `/openapi.json` if the vLLM version changed, and diff it against the committed copy
 - Revisit the no-cache decision and any concurrency caps against real numbers
 
@@ -400,6 +353,11 @@ vllm serve <model> \
  --api-key <shared-or-per-student-key>
 
 Agentic capabilities may be limited by the model that we're running.
+
+Config notes:
+
+- The parser name is a function of the model, so the two tool-calling flags move with `VLLM_MODEL`. They are deliberately not in the compose files yet; a harness sending `tools` is a return trip to Milestone 1 for a re-capture first
+- **Open contradiction:** `--api-key` above conflicts with [vps-deployment.md](vps-deployment.md), which deliberately decides against an upstream key. One of the two should change
 
 Looks like this needs a VS Code extension to be able to use the API:
 
