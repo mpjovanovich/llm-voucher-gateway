@@ -1,6 +1,6 @@
 # Needed so that Make knows these are not actual files
-.PHONY: clean down migration require-model
-.PHONY: run-api run-llm run-web
+.PHONY: clean down migration
+.PHONY: require-model require-admin-key run-api run-llm run-web
 .PHONY: api-check-completion-nostream api-check-completion-streaming api-mint-voucher
 .PHONY: llm-check-life
 .PHONY: deploy run-prod down-prod ps-prod logs-prod
@@ -18,6 +18,11 @@
 # opinion. VLLM_MODEL deliberately gets none: the compose files require it, and
 # a default here would hide a missing .env behind someone else's model.
 VLLM_PORT ?= 8000
+
+# Where the Makefile's curl helpers send requests. The dev default is the
+# gateway's Kestrel port; the server sets GATEWAY_URL=http://localhost:8080 in
+# .env, which points the same targets at the production container.
+GATEWAY_URL ?= http://localhost:5131
 
 # Named rather than a bare `export`, which would also put a secret from .env
 # (ADMIN_KEY) into the environment of every recipe. Exporting these two is what
@@ -62,8 +67,13 @@ migration:
 	ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations add $(name) \
 		--project src/LlmVoucherGateway.Api --output-dir Persistence/Migrations
 
+# ADMIN_KEY is injected only when .env sets it. Left empty it would override
+# appsettings.Development.json's dev key with nothing, breaking admin auth on a
+# box that never needed a key of its own; this way .env wins when it has an
+# opinion and the Development file remains the single dev default.
 run-api:
 	Inference__BaseUrl=http://localhost:$(VLLM_PORT) \
+		$(if $(ADMIN_KEY),Admin__Keys__0=$(ADMIN_KEY),) \
 		dotnet run --project src/LlmVoucherGateway.Api --launch-profile http
 
 run-llm:
@@ -86,10 +96,15 @@ require-model:
 	@test -n "$(VLLM_MODEL)" || \
 		{ echo "VLLM_MODEL is not set. Copy .env.example to .env."; exit 1; }
 
+# Fails with a message instead of sending an empty bearer token
+require-admin-key:
+	@test -n "$(ADMIN_KEY)" || \
+		{ echo "ADMIN_KEY is not set. Set it in .env."; exit 1; }
+
 # Requires a voucher to be minted first.
 # make api-check-completion-nostream key=<voucher-key>
 api-check-completion-nostream: require-model
-	curl -sS -w '\n' http://localhost:5131/v1/chat/completions \
+	curl -sS -w '\n' $(GATEWAY_URL)/v1/chat/completions \
 		-H "Authorization: Bearer $(key)" \
 		-H "Content-Type: application/json" \
 		-d '{"model":"$(VLLM_MODEL)","messages":[{"role":"user","content":"Say hello in one sentence."}]}'
@@ -97,16 +112,16 @@ api-check-completion-nostream: require-model
 # Requires a voucher to be minted first.
 # make api-check-completion key=<voucher-key>
 api-check-completion-streaming: require-model
-	curl -sS -w '\n' http://localhost:5131/v1/chat/completions \
+	curl -sS -w '\n' $(GATEWAY_URL)/v1/chat/completions \
 		-H "Authorization: Bearer $(key)" \
 		-H "Content-Type: application/json" \
 		-d '{"model":"$(VLLM_MODEL)","messages":[{"role":"user","content":"Say hello in one sentence."}],"stream":true}'
 
 # make api-mint-voucher (uses defaults above)
 # make api-mint-voucher count=1 allowance=10000 days=30
-api-mint-voucher:
-	curl -sS -w '\n' http://localhost:5131/admin/vouchers \
-		-H "Authorization: Bearer dev-admin-key" \
+api-mint-voucher: require-admin-key
+	curl -sS -w '\n' $(GATEWAY_URL)/admin/vouchers \
+		-H "Authorization: Bearer $(ADMIN_KEY)" \
 		-H "Content-Type: application/json" \
 		-d '{"section":"CSCI-101","count":$(count),"allowance":$(allowance),"expiresAt":"$(shell date -u -d "+$(days) days" +%Y-%m-%dT23:59:59Z)"}'
 
