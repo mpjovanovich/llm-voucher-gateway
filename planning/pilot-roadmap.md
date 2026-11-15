@@ -163,11 +163,13 @@ Field has now been added, and is set whenever anyone tries to use the API with t
 
 ## 7.5 Remove hardcoded options - port to configuration
 
+_COMPLETE_
+
 See planning doc for this.
 
 ## 7.6 VPS deployment plan
 
-_Complete_ — see [vps-deployment.md](vps-deployment.md)
+_COMPLETE_ — see [vps-deployment.md](vps-deployment.md)
 
 - _COMPLETE_ — Topology, packaging, gateway exposure, reverse proxy
 - _COMPLETE_ — Database location, backup and ad-hoc access
