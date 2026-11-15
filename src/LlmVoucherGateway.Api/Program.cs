@@ -43,4 +43,6 @@ app.MapModels();
 
 app.MapAdminEndpoints();
 
+app.MapHealthChecks("/health");
+
 await app.RunAsync();

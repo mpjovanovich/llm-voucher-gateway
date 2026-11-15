@@ -16,6 +16,10 @@ internal sealed class VllmInferenceClient : IInferenceClient
 
     private const string ModelsPath = "v1/models";
 
+    // vLLM's own liveness route. It answers once the engine is up, without touching the
+    // GPU, so probing it costs nothing in terms of tokens.
+    private const string HealthPath = "health";
+
     private readonly HttpClient httpClient;
 
     public VllmInferenceClient(HttpClient httpClient)
@@ -71,5 +75,12 @@ internal sealed class VllmInferenceClient : IInferenceClient
             ContentType = response.Content.Headers.ContentType?.ToString(),
             Body = await response.Content.ReadAsStreamAsync(cancellationToken),
         };
+    }
+
+    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken)
+    {
+        using HttpResponseMessage response = await httpClient.GetAsync(HealthPath, cancellationToken);
+
+        return response.IsSuccessStatusCode;
     }
 }

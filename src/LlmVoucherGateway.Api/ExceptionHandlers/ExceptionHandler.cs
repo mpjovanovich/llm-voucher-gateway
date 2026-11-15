@@ -96,6 +96,16 @@ internal sealed class ExceptionHandler(
                 argumentException.Message,
                 null
             ),
+            // The only HTTP this gateway originates is to the inference server, so this
+            // is vLLM being down or unreachable. 502 rather than 500 tells a harness and
+            // an operator that the gateway itself is fine. The exception's own message
+            // names the internal address, so it stays in the log.
+            HttpRequestException => new ExceptionDetails(
+                StatusCodes.Status502BadGateway,
+                "Inference server unavailable",
+                "The inference server could not be reached.",
+                null
+            ),
             _ => new ExceptionDetails(
                 StatusCodes.Status500InternalServerError,
                 "Server error",

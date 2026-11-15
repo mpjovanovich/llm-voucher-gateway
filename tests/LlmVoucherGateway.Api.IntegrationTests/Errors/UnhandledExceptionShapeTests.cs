@@ -21,7 +21,7 @@ public class UnhandledExceptionShapeTests
     };
 
     [Fact]
-    public async Task ChatCompletions_WhenTheUpstreamThrows_ReturnsTheOpenAiErrorShape()
+    public async Task ChatCompletions_WhenTheUpstreamThrows_ReturnsBadGatewayInTheOpenAiErrorShape()
     {
         await using GatewayApplicationFactory factory = new();
         using HttpClient client = await factory.CreateVoucherClientAsync();
@@ -29,11 +29,11 @@ public class UnhandledExceptionShapeTests
 
         using HttpResponseMessage response = await client.PostAsJsonAsync("/v1/chat/completions", ChatRequest);
 
-        await AssertOpenAiServerErrorAsync(response);
+        await AssertOpenAiBadGatewayAsync(response);
     }
 
     [Fact]
-    public async Task Models_WhenTheUpstreamThrows_ReturnsTheOpenAiErrorShape()
+    public async Task Models_WhenTheUpstreamThrows_ReturnsBadGatewayInTheOpenAiErrorShape()
     {
         await using GatewayApplicationFactory factory = new();
         using HttpClient client = await factory.CreateVoucherClientAsync();
@@ -41,7 +41,25 @@ public class UnhandledExceptionShapeTests
 
         using HttpResponseMessage response = await client.GetAsync("/v1/models");
 
-        await AssertOpenAiServerErrorAsync(response);
+        await AssertOpenAiBadGatewayAsync(response);
+    }
+
+    [Fact]
+    public async Task ChatCompletions_WhenSomethingElseThrows_ReturnsServerErrorInTheOpenAiErrorShape()
+    {
+        await using GatewayApplicationFactory factory = new();
+        using HttpClient client = await factory.CreateVoucherClientAsync();
+        factory.InferenceClient.Fault = new InvalidOperationException("a bug of our own");
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync("/v1/chat/completions", ChatRequest);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        JsonElement error = document.RootElement.GetProperty("error");
+
+        Assert.Equal(OpenAiErrorResults.ServerErrorType, error.GetProperty("type").GetString());
+        Assert.Equal(500, error.GetProperty("code").GetInt32());
     }
 
     [Fact]
@@ -57,9 +75,10 @@ public class UnhandledExceptionShapeTests
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
 
-    private static async Task AssertOpenAiServerErrorAsync(HttpResponseMessage response)
+    private static async Task AssertOpenAiBadGatewayAsync(HttpResponseMessage response)
     {
-        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        // Not 500: the gateway is fine, the server behind it is not.
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
 
         string body = await response.Content.ReadAsStringAsync();
@@ -77,7 +96,7 @@ public class UnhandledExceptionShapeTests
             error.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal)
         );
         Assert.Equal(OpenAiErrorResults.ServerErrorType, error.GetProperty("type").GetString());
-        Assert.Equal(500, error.GetProperty("code").GetInt32());
+        Assert.Equal(502, error.GetProperty("code").GetInt32());
 
         // What went wrong inside is for the log, not for a student's terminal.
         Assert.DoesNotContain(UpstreamFailureMessage, body, StringComparison.Ordinal);

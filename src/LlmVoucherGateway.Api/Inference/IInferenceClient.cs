@@ -27,4 +27,10 @@ internal interface IInferenceClient
     /// Tears down the upstream request when the caller disconnects.
     /// </param>
     Task<InferenceResponse> ListModelsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Asks the upstream server whether it is up. <c>false</c> when it answers but says
+    /// no; throws when it cannot be reached at all.
+    /// </summary>
+    Task<bool> IsHealthyAsync(CancellationToken cancellationToken);
 }

@@ -42,6 +42,12 @@ internal sealed class FakeInferenceClient : IInferenceClient
     /// </summary>
     public Exception? Fault { get; set; }
 
+    /// <summary>
+    /// What the upstream says about itself when asked. Set to <c>false</c> for a server
+    /// that answers but is not ready.
+    /// </summary>
+    public bool Healthy { get; set; } = true;
+
     public async Task<InferenceResponse> CreateChatCompletionAsync(
         Stream requestBody,
         CancellationToken cancellationToken
@@ -115,6 +121,9 @@ internal sealed class FakeInferenceClient : IInferenceClient
 
         return Task.FromResult(response);
     }
+
+    public Task<bool> IsHealthyAsync(CancellationToken cancellationToken) =>
+        Fault is not null ? throw Fault : Task.FromResult(Healthy);
 
     /// <summary>
     /// The real client forwards the body without inspection; this one has to read it,

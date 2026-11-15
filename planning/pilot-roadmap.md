@@ -281,9 +281,10 @@ Code change, tested locally, then deployed. **TODO — not started.**
 
 ### 8i. Health and error shape
 
-Code change, tested locally, then deployed. **Error shape done; `/health` not started.**
+Code change, tested locally, then deployed. **Code complete and checked against the dev vLLM; the Verify below is the deployment check.**
 
-- TODO — `/health`: `200` when the gateway can reach vLLM, `503` when it can't. A health check that probes the upstream
+- _COMPLETE_ — `/health`: `200` when the gateway can reach vLLM, `503` when it can't. Unauthenticated; probes vLLM's own `/health` with a 5 second limit. See [InferenceHealthCheck.cs](../src/LlmVoucherGateway.Api/Inference/InferenceHealthCheck.cs) and [HealthEndpointTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Inference/HealthEndpointTests.cs)
+- _COMPLETE_ — vLLM unreachable on `/v1` is `502` with type `server_error`, not `500`, so a harness and an operator can tell the gateway itself is fine
 - _COMPLETE_ — Unhandled exceptions on `/v1` return the OpenAI error shape instead of ProblemDetails; admin routes keep ProblemDetails. See [ExceptionHandler.cs](../src/LlmVoucherGateway.Api/ExceptionHandlers/ExceptionHandler.cs) and [UnhandledExceptionShapeTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Errors/UnhandledExceptionShapeTests.cs)
 
 **Verify:** `curl localhost:8080/health` returns `200`. After `docker compose stop llm-server` it returns `503`, and after `start` it returns `200` again.
