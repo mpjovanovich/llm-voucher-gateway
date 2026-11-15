@@ -52,6 +52,10 @@ services:
       # The directory, not the database file: WAL mode keeps -wal and -shm beside it.
       - ${GATEWAY_DATA_DIR:-/srv/llm-gateway/data}:/data
     environment:
+      # Forwarded headers make the client address in the request and issuance
+      # logs the real caller instead of Caddy's address on this network.
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
       - Inference__BaseUrl=http://llm-server:8000
       - Admin__Keys__0=${ADMIN_KEY:?set ADMIN_KEY in .env}
       - Database__Path=/data/vouchers.db
