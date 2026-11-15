@@ -1,0 +1,28 @@
+# Caddy terminates TLS and routes by hostname. Bind-mounted into the caddy
+# container by docker-compose.prod.yml; see planning/vps-deployment.md.
+#
+# {$VAR} is substituted by Caddy when it parses this file, so the institution's
+# real hostnames stay in .env rather than in git. Compose requires all three,
+# and an unset one stops the stack with a message naming it.
+
+{
+	# ACME account email for Let's Encrypt: expiry warnings and account
+	# recovery. Not an application notification address.
+	email {$ACME_EMAIL}
+}
+
+# The gateway: the OpenAI-shaped API for harnesses, and /admin for vouchers.
+{$LLM_HOSTNAME} {
+	reverse_proxy gateway:8080 {
+		# Forward each chunk as it arrives. Caddy already does this for
+		# text/event-stream; stated because a buffered stream makes a harness
+		# wait for the whole generation. Deliberately no `encode` on this site:
+		# compression is the likeliest thing to re-buffer a stream.
+		flush_interval -1
+	}
+}
+
+# The Streamlit chat UI. WebSockets need no configuration.
+{$CHAT_HOSTNAME} {
+	reverse_proxy web:8501
+}

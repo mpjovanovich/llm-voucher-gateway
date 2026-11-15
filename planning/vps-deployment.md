@@ -100,17 +100,7 @@ The gateway is a product in its own right, not only Streamlit's backend. It is a
 
 Caddy terminates TLS and routes by hostname. Without it, voucher and admin keys would cross the internet in cleartext.
 
-```
-llm.example.edu {
-    reverse_proxy gateway:8080 {
-        flush_interval -1
-    }
-}
-
-chat.example.edu {
-    reverse_proxy web:8501
-}
-```
+Written out in [Caddyfile](../Caddyfile), which uses `{$LLM_HOSTNAME}`, `{$CHAT_HOSTNAME}` and `{$ACME_EMAIL}` rather than literal hostnames — Caddy substitutes them at parse time, so the institution's real hostnames stay in `.env`. Compose requires all three.
 
 - **Certificates:** automatic from Let's Encrypt. Needs DNS A records for both hostnames and ports 80 and 443 open. Persist Caddy's `/data` in a named volume, or every rebuild re-requests certificates and runs into rate limits
 - **Cloudflare records are DNS only (grey cloud), not proxied.** Cloudflare's proxy cuts responses off at 100 seconds, which kills long generations, and it puts its own addresses in front of every client

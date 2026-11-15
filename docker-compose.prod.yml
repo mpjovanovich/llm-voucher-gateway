@@ -36,6 +36,13 @@ services:
       # into Let's Encrypt rate limits.
       - caddy-data:/data
       - caddy-config:/config
+    # Caddy substitutes these when it parses the Caddyfile, which keeps the real
+    # hostnames in .env instead of git. Required: an unset one would leave an
+    # empty site address and a parse error with no name attached to it.
+    environment:
+      - LLM_HOSTNAME=${LLM_HOSTNAME:?set LLM_HOSTNAME in .env}
+      - CHAT_HOSTNAME=${CHAT_HOSTNAME:?set CHAT_HOSTNAME in .env}
+      - ACME_EMAIL=${ACME_EMAIL:?set ACME_EMAIL in .env}
     depends_on:
       - gateway
       - web
