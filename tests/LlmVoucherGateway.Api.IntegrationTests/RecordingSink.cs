@@ -26,10 +26,20 @@ internal sealed class RecordingSink : ILogEventSink
 
     private readonly ConcurrentQueue<string> _entries = new();
 
+    private readonly ConcurrentQueue<LogEvent> _events = new();
+
     public string Output => string.Join(Environment.NewLine, _entries);
+
+    /// <summary>
+    /// The events themselves, for assertions about a property the text format above
+    /// does not render.
+    /// </summary>
+    public IReadOnlyCollection<LogEvent> Events => _events;
 
     public void Emit(LogEvent logEvent)
     {
+        _events.Enqueue(logEvent);
+
         using StringWriter entry = new();
 
         // Formatted, not the raw template, so an argument that was never meant to be

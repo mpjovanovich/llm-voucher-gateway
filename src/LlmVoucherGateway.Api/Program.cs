@@ -31,18 +31,21 @@ WebApplication app = builder.Build();
 
 await app.MigrateDatabaseAsync();
 
-// First in the pipeline so it covers everything downstream, including the
-// credential middleware.
+// Ahead of the exception handler, so the request line reports the status the handler
+// chose and the handler's own log line carries the correlation id.
+app.UseRequestLogging();
+
+// Before everything else that can throw, including the credential middleware.
 app.UseExceptionHandler();
 
 app.UseMiddleware<CredentialMiddleware>();
 
-app.MapChatCompletions();
-
-app.MapModels();
+app.MapHealthChecks("/health");
 
 app.MapAdminEndpoints();
 
-app.MapHealthChecks("/health");
+app.MapModels();
+
+app.MapChatCompletions();
 
 await app.RunAsync();

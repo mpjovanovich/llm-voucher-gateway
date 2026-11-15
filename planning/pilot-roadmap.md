@@ -255,11 +255,12 @@ Every `docker compose` command below means `docker compose -f docker-compose.pro
 
 ### 8f. Real client addresses and request logs
 
-Code change, tested locally, then deployed. **TODO — not started.**
+Code change, tested locally, then deployed. **Code complete; the Verify below is the deployment check.**
 
 - _COMPLETE_ — `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` in the gateway's `environment`
-- TODO — One log line per request with method, path, status, duration and client address. `UseSerilogRequestLogging()` is the one-line part
-- TODO — A correlation ID on every log line from the same request. Needs a middleware or enricher, plus the property in the `appsettings` output template
+- _COMPLETE_ — One log line per request with method, path, status, duration and client address. The path excludes the query string. See [LoggingRegistration.cs](../src/LlmVoucherGateway.Api/Observability/LoggingRegistration.cs)
+- _COMPLETE_ — A correlation ID on every log line from the same request, also returned to the caller as `X-Request-Id`. It is the framework's request id, not a client-supplied header. See [CorrelationIdMiddleware.cs](../src/LlmVoucherGateway.Api/Middleware/CorrelationIdMiddleware.cs) and [RequestLoggingTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Observability/RequestLoggingTests.cs)
+- Checked locally in Production mode with a hand-set `X-Forwarded-For`: the request line and the rejection line both showed the forwarded address. Through Caddy is still unproven
 
 **Verify:** `docker compose logs gateway` after a request from your laptop shows your public IP, not a `172.x` Docker address, and its lines share one correlation ID.
 

@@ -14,6 +14,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
+using Serilog.Events;
 
 namespace LlmVoucherGateway.Api.IntegrationTests;
 
@@ -71,6 +72,11 @@ internal class GatewayApplicationFactory : WebApplicationFactory<Program>
     /// Everything the application logged during this factory's lifetime.
     /// </summary>
     public string LogOutput => _recordingSink.Output;
+
+    /// <summary>
+    /// The same log as events, for assertions about properties rather than text.
+    /// </summary>
+    public IReadOnlyCollection<LogEvent> LogEvents => _recordingSink.Events;
 
     /// <summary>
     /// Mints a voucher through the admin endpoint and returns its key. Tests that need a

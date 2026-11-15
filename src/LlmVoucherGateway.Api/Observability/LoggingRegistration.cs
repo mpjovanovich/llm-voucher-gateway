@@ -1,3 +1,4 @@
+using LlmVoucherGateway.Api.Middleware;
 using Serilog;
 
 namespace LlmVoucherGateway.Api.Observability;
@@ -28,5 +29,36 @@ internal static class LoggingRegistration
         );
 
         return builder;
+    }
+
+    /// <summary>
+    /// One log line per request, and one correlation id across every line a request
+    /// writes. Call it before anything else in the pipeline.
+    /// </summary>
+    public static WebApplication UseRequestLogging(this WebApplication app)
+    {
+        // Outermost, so the id is already in place when the request line below is
+        // written on the way back out.
+        app.UseMiddleware<CorrelationIdMiddleware>();
+
+        app.UseSerilogRequestLogging(options =>
+        {
+            // The middleware defaults to Serilog's static logger, which this host
+            // deliberately leaves unassigned (see above). Without this the request line
+            // is written to nowhere, with no error to show for it.
+            options.Logger = app.Services.GetRequiredService<Serilog.ILogger>();
+
+            // RequestPath excludes the query string, and no header is logged, so a
+            // credential cannot reach this line.
+            options.MessageTemplate =
+                "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0} ms from {ClientAddress}";
+
+            // The real caller once forwarded headers are enabled (production, behind
+            // Caddy); otherwise the peer address.
+            options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+                diagnosticContext.Set("ClientAddress", httpContext.Connection.RemoteIpAddress);
+        });
+
+        return app;
     }
 }
