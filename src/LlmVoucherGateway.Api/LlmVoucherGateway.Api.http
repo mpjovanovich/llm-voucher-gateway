@@ -7,7 +7,7 @@
 #
 # Editor HTTP clients may hold a streamed response until it completes, so they show
 # that streaming *works* but not that it is *unbuffered*. For timing, use the curl
-# method in api_documentation/README.md ("Streaming baseline").
+# method in docs/api_documentation/README.md ("Streaming baseline").
 #
 # Since Milestone 6, /v1/chat/completions requires a voucher. Run "Issue vouchers"
 # below first, copy the `key` from the response into @voucherKey, and the chat requests

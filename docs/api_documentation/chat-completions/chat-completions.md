@@ -4,9 +4,9 @@ This document covers how vLLM reports token counts, and what that forces on the 
 
 **_The raw captures are the integration tests' fixtures_**. Only excerpts are included here:
 
-[tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures](../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/README.md).
+[tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures](../../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/README.md).
 
-Non-streaming is the uninteresting case: `usage` is always present, nothing has to be opted into, and `total_tokens` is final — see [non-streaming-response.json](../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/non-streaming-response.json). Everything below is about streaming.
+Non-streaming is the uninteresting case: `usage` is always present, nothing has to be opted into, and `total_tokens` is final — see [non-streaming-response.json](../../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/non-streaming-response.json). Everything below is about streaming.
 
 ## The two switches
 
@@ -14,11 +14,11 @@ Two independent switches decide whether a streaming response carries token count
 
 | Switches                                         | Resulting `usage`                   | Capture                                                                                                                                 |
 | ------------------------------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| server `--enable-force-include-usage`            | on every chunk, as a running count  | [usage-requested-server.sse](../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/streaming-response-usage-requested-server.sse) |
-| client `stream_options: {"include_usage": true}` | one trailing chunk, empty `choices` | [usage-requested-client.sse](../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/streaming-response-usage-requested-client.sse) |
-| neither                                          | absent entirely                     | [usage-not-requested.sse](../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/streaming-response-usage-not-requested.sse)       |
+| server `--enable-force-include-usage`            | on every chunk, as a running count  | [usage-requested-server.sse](../../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/streaming-response-usage-requested-server.sse) |
+| client `stream_options: {"include_usage": true}` | one trailing chunk, empty `choices` | [usage-requested-client.sse](../../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/streaming-response-usage-requested-client.sse) |
+| neither                                          | absent entirely                     | [usage-not-requested.sse](../../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/streaming-response-usage-not-requested.sse)       |
 
-**The first row is what the gateway sees.** [docker-compose.llm.yml](../../docker-compose.llm.yml)
+**The first row is what the gateway sees.** [docker-compose.llm.yml](../../../docker-compose.llm.yml)
 sets the flag, and harnesses send no `stream_options`.
 
 ## Development testing

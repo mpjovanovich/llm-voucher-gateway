@@ -11,9 +11,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Production default. make run-web does not set this, so the dev default in app.py stays.
-ENV GATEWAY_BASE_URL=http://gateway:8080/v1
-
 EXPOSE 8501
 
 CMD ["streamlit", "run", "app.py", \

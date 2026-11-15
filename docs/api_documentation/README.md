@@ -9,7 +9,7 @@ tested without a GPU. Captured generously per the roadmap's instruction — anyt
 - **Model served:** `Qwen/Qwen2.5-0.5B-Instruct`
 - **`max_model_len`:** 32768
 - **Launch command (at capture time):** `--model Qwen/Qwen2.5-0.5B-Instruct --gpu-memory-utilization 0.85`
-- **Launch command (current):** adds `--enable-force-include-usage` (see [docker-compose.llm.yml](../docker-compose.llm.yml))
+- **Launch command (current):** adds `--enable-force-include-usage` (see [docker-compose.llm.yml](../../docker-compose.llm.yml))
 - **Capture date:** 2026-09-11, except the forced-usage capture below (2026-10-28)
 
 The flag changes the streaming response shape, so the two streaming captures from
@@ -20,8 +20,8 @@ The flag changes the streaming response shape, so the two streaming captures fro
 | Concern | Path | Notes |
 |---|---|---|
 | OpenAPI schema | [openapi.json](openapi.json) | Raw `/openapi.json` from the running instance. Re-pull and diff in Milestone 10 if the vLLM version changes. |
-| Chat completion responses | [Fixtures/](../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/README.md) | The non-streaming response and all three streaming shapes, raw. The integration tests replay these, so they are the single source of truth. |
-| Token usage | [chat-completions/streaming-usage.md](chat-completions/streaming-usage.md) | How `usage` appears in each shape, which switch produces which, and what the metering loop depends on. |
+| Chat completion responses | [Fixtures/](../../tests/LlmVoucherGateway.Api.IntegrationTests/Fixtures/README.md) | The non-streaming response and all three streaming shapes, raw. The integration tests replay these, so they are the single source of truth. |
+| Token usage | [chat-completions/chat-completions.md](chat-completions/chat-completions.md) | How `usage` appears in each shape, which switch produces which, and what the metering loop depends on. |
 | Error: unknown model | [errors/unknown-model.json](errors/unknown-model.json) | HTTP 404, `type: "NotFoundError"`. |
 | Error: context-length overflow | [errors/context-length-overflow.json](errors/context-length-overflow.json) | HTTP 400, `type: "BadRequestError"`. Forced via an out-of-range `max_tokens`. |
 | Error: malformed request | [errors/malformed-request.json](errors/malformed-request.json) | HTTP 400, `type: "Bad Request"`. Two variants: invalid JSON syntax, and schema-validation failure. |
@@ -95,7 +95,7 @@ produced 961 chunks against 750 for the other five. Compare timing shapes, not t
 
 With vLLM running (`make run-llm`), see the `curl` examples at the top of each
 file. The comments at the top of
-[docker-compose.llm.yml](../docker-compose.llm.yml) show the base request shapes
+[docker-compose.llm.yml](../../docker-compose.llm.yml) show the base request shapes
 this capture set was built from.
 
 ## Feeds forward to

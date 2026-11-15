@@ -23,9 +23,9 @@ The dev GPU box is lower spec than production. These milestones prove shape and 
 
 | Milestone                                                                                                  | Where to look                                                                                                                                                                                                                                                                                                                 |
 | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. vLLM on a GPU host, capture set                                                                         | [api_documentation/](../api_documentation/)                                                                                                                                                                                                                                                                                   |
+| 1. vLLM on a GPU host, capture set                                                                         | [api_documentation/](../docs/api_documentation/)                                                                                                                                                                                                                                                                                   |
 | 2. Aider against vLLM directly                                                                             | Baseline for Milestone 3                                                                                                                                                                                                                                                                                                      |
-| 3. Pass-through API                                                                                        | [api_documentation/README.md](../api_documentation/README.md#streaming-baseline--milestone-3), [LlmVoucherGateway.Api.http](../src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.http)                                                                                                                                          |
+| 3. Pass-through API                                                                                        | [api_documentation/README.md](../docs/api_documentation/README.md#streaming-baseline--milestone-3), [LlmVoucherGateway.Api.http](../src/LlmVoucherGateway.Api/LlmVoucherGateway.Api.http)                                                                                                                                          |
 | 4. Persistence (SQLite, EF Core)                                                                           | [Persistence/](../src/LlmVoucherGateway.Api/Persistence/)                                                                                                                                                                                                                                                                     |
 | 5. Voucher issuance, admin auth, issuance logging                                                          | [Endpoints/](../src/LlmVoucherGateway.Api/Endpoints/), [Credentials/](../src/LlmVoucherGateway.Api/Credentials/)                                                                                                                                                                                                              |
 | 6a–6f. Error contract, fake inference client, spendability, voucher lookup, enforcement, rejection logging | [Errors/](../src/LlmVoucherGateway.Api/Errors/), [CredentialMiddleware.cs](../src/LlmVoucherGateway.Api/Middleware/CredentialMiddleware.cs), [VoucherRequiredEndpointFilter.cs](../src/LlmVoucherGateway.Api/Credentials/VoucherRequiredEndpointFilter.cs), [Voucher.cs](../src/LlmVoucherGateway.Domain/Vouchers/Voucher.cs) |
@@ -63,7 +63,7 @@ Fill in the voucher branch of the middleware from Milestone 5a. Requests without
 - **Errors must be OpenAI-shaped**, matching the error payloads captured in Milestone 1. A harness receiving your custom error format will render garbage or crash. Every failure has to leave through a wire format the client already understands. Errors from vLLM relay verbatim and are already correctly shaped; this is about the rejections we generate
 - Distinguish 401 (bad credential) from 402 (valid but out of allowance), so a student can tell "wrong key" from "used it up"
 
-**Depends on:** captured error payloads from Milestone 1. Without them the error shape is guesswork. The shape they fix is `{"error":{"message","type","param","code"}}` — see [errors/](../api_documentation/errors/).
+**Depends on:** captured error payloads from Milestone 1. Without them the error shape is guesswork. The shape they fix is `{"error":{"message","type","param","code"}}` — see [errors/](../docs/api_documentation/errors/).
 
 **Substep ordering:** 6a, 6b and 6c are independent of each other and can be taken in any order. Everything after is forced: 6a and 6b and 6d all feed 6e, 6c feeds 6d and 6e, and 6f then 6g follow enforcement. `/v1/chat/completions` stays open until 6e — the same deliberate gap as 5b before 5c, and for the same reason: a requirement needs something to attach to, and resolution is testable before rejection exists.
 
@@ -121,7 +121,7 @@ Mint vouchers with `POST /admin/vouchers` (see [LlmVoucherGateway.Api.http](../s
 _Complete_
 
 - Read `usage.total_tokens` from the response and add it to the voucher's consumption. `total_tokens` already includes the prompt; adding `prompt_tokens` again would double-bill it
-- Streaming: vLLM forces usage server-side with `--enable-force-include-usage` (set in `docker-compose.llm.yml`). Every chunk carries a running count, so the gateway relays bytes untouched and parses only the last `data:` line after the stream ends. See [streaming-response-forced-usage.md](../api_documentation/chat-completions/streaming-response-forced-usage.md)
+- Streaming: vLLM forces usage server-side with `--enable-force-include-usage` (set in `docker-compose.llm.yml`). Every chunk carries a running count, so the gateway relays bytes untouched and parses only the last `data:` line after the stream ends. See [streaming-response-forced-usage.md](../docs/api_documentation/chat-completions/chat-completions.md#why-the-flag-and-what-it-costs)
 - **The flag must be set wherever the pilot's vLLM runs.** Without it, streaming requests meter as nothing
 - Soft limits: check on entry, record after, overshoot accepted
 - Use `Voucher.RecordConsumption` against the aggregate already on the resolved credential
@@ -178,7 +178,7 @@ _COMPLETE_ — see [vps-deployment.md](vps-deployment.md)
 
 ## 7.7 Simplify launch configuration
 
-_Complete_ — see [vllm-configuration.md](vllm-configuration.md)
+_Complete_ — see [vllm-configuration.md](../docs/configuration/vllm-configuration.md)
 
 - [.env.example](../.env.example) is the contract: the list of what a machine decides, and the only place it gets set. `VLLM_MODEL`, `VLLM_GPU_MEMORY_UTILIZATION` and (in production) `ADMIN_KEY` are required, so compose stops with a message naming the variable instead of falling back to a dev value
 - Defaults only where the value is not an opinion: `VLLM_PORT=8000` is the port vLLM listens on inside its container, and `VLLM_WSL2_ENABLE_PIN_MEMORY=0` is what a native Linux host wants. The duplicate default layers in the Makefile and the compose files are gone
@@ -212,8 +212,8 @@ _Complete_ — see [vllm-configuration.md](vllm-configuration.md)
 
 ### Housekeeping found along the way
 
-- Seven stale `api_documentation/` references from the `docs/` move. Three are broken markdown links in `pilot-roadmap.md` (lines 26, 28, 66, 124) and one in `tests/.../Fixtures/README.md:9`; the rest are prose mentions in `OpenAiError.cs:11` and the `.http` file.
-- `GATEWAY_BASE_URL` is set twice — `ENV` in the Web Dockerfile and again in the prod compose `environment:`. Pick one; compose is the better home.
+- _COMPLETE_ — Stale links from the `docs/` move. It was **24 broken links, not seven**: the move also broke the links _inside_ the moved files, which kept their repo-root depth, so `docs/api_documentation/` and `docs/configuration/` were pointing at `docs/docker-compose.llm.yml`, `docs/src/...` and the like. Two targets no longer existed under any path — `streaming-usage.md` and `streaming-response-forced-usage.md` were merged into [chat-completions.md](../docs/api_documentation/chat-completions/chat-completions.md), which both now point at. Prose mentions in `OpenAiError.cs` and the `.http` file are `docs/`-prefixed too. All 73 relative links in the repo's markdown now resolve
+- _COMPLETE_ — `GATEWAY_BASE_URL` set twice. The `ENV` line is gone from the Web Dockerfile; the prod compose `environment:` is the one home, and `make run-web` keeps `app.py`'s dev default
 - The `.http` file's `@baseUrl`/`@adminKey` can't read `.env`, so those stay hardcoded. Fine, just don't count it as drift.
 
 ### Recommended sequencing
@@ -223,7 +223,7 @@ _Complete_ — see [vllm-configuration.md](vllm-configuration.md)
 3. ~~**A2** (`appsettings.Production.json`)~~ — _done_. `Console` is repeated at index 0 because configuration merges arrays by index: a Production file starting with the File sink would replace the console sink, not add to it, and `docker compose logs gateway` would go quiet.
 4. ~~**A4** (Caddyfile + hostname variables)~~ — _done_, except `caddy validate`, which needs a Docker daemon.
 5. ~~**A5** (sqlite-web)~~ and ~~**A6** (web timeouts)~~ — _done_.
-6. **Housekeeping links** — fold into whichever pass touches those files.
+6. ~~**Housekeeping links**~~ — _done_.
 7. **B** (`VLLM_MAX_MODEL_LEN`) — at the GPU box, in the same session as the first real model load.
 
 After 1–6, every per-machine value lives in `.env` and no literal in a compose file or `appsettings` is a machine choice. That's the point where you can call configuration done: what's left in Milestone 8 is behind the two code items in group C, and the remaining milestone references in comments are about features, not configuration.

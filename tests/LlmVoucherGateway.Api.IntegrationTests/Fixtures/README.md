@@ -2,11 +2,11 @@
 
 Byte-for-byte captures from a live vLLM instance, replayed by `FakeInferenceClient` so the
 gateway can be tested without a GPU. These files are the single source of truth for what
-the upstream server returns; `api_documentation/` explains the shapes and cites them rather
+the upstream server returns; `docs/api_documentation/` explains the shapes and cites them rather
 than holding its own copies.
 
 Capture environment (image tag, model, launch flags) is recorded in
-[api_documentation/README.md](../../../api_documentation/README.md).
+[api_documentation/README.md](../../../docs/api_documentation/README.md).
 
 ## Streaming captures
 
@@ -52,6 +52,6 @@ ever has to understand one error format.
 
 Tests assert on the exact bytes — the token totals the usage observers extract, and the
 bodies the relay must pass through untouched. Refresh one by re-running the capture against
-a live vLLM (`make run-llm`, then the `curl` shapes in `api_documentation/`), not by hand
+a live vLLM (`make run-llm`, then the `curl` shapes in `docs/api_documentation/`), not by hand
 editing. The `created` timestamps and `id` values are part of the capture; leaving them
 intact is what makes the file evidence rather than a fabricated example.
