@@ -178,7 +178,13 @@ _COMPLETE_ — see [vps-deployment.md](vps-deployment.md)
 
 ## 7.7 Simplify launch configuration
 
-TODO: work in progress. Contract set by env example file; figure out what commands run where for dev vs prod; etc.
+_Complete_ — see [vllm-configuration.md](vllm-configuration.md)
+
+- [.env.example](../.env.example) is the contract: the list of what a machine decides, and the only place it gets set. `VLLM_MODEL`, `VLLM_GPU_MEMORY_UTILIZATION` and (in production) `ADMIN_KEY` are required, so compose stops with a message naming the variable instead of falling back to a dev value
+- Defaults only where the value is not an opinion: `VLLM_PORT=8000` is the port vLLM listens on inside its container, and `VLLM_WSL2_ENABLE_PIN_MEMORY=0` is what a native Linux host wants. The duplicate default layers in the Makefile and the compose files are gone
+- Literals, because none is a per-machine choice: the pinned image tag, `--enable-force-include-usage`, `count: 1` for GPUs, and the in-container addresses
+- Both environments start from the [Makefile](../Makefile), so one file answers "how does everything start": dev is `run-llm`, `run-api`, `run-web`; production is `deploy`, `run-prod`, `down-prod`, `ps-prod`, `logs-prod service=<name>`. The production targets add the `-f` flag and nothing else
+- `make run-api` derives `Inference__BaseUrl` from `VLLM_PORT`, so changing the port cannot leave the gateway dialing a port vLLM was not published on
 
 ---
 
@@ -195,12 +201,14 @@ GeForce RTX 5060 8GB vRAM
 
 Bring the stack up one service at a time, inside out, so each failure has one suspect. Components for production server are listed below. These are the sub-milestones.
 
+Every `docker compose` command below means `docker compose -f docker-compose.prod.yml ...`, run from the checkout on the server. The Makefile wraps the lifecycle ones — `make deploy`, `run-prod`, `down-prod`, `ps-prod`, `logs-prod service=<name>` — and the bare form is spelled out here where a step acts on one service.
+
 ### 8a. Server ready
 
 - Install Docker and the NVIDIA Container Toolkit. `sudo systemctl enable docker`, so Docker starts on boot
 - Firewall: allow SSH **before** turning `ufw` on, then 80 and 443
 - Clone the repo. Create the data directory: `sudo mkdir -p /srv/llm-gateway/data && sudo chown 1654 /srv/llm-gateway/data`
-- Server `.env`: `cp .env.example .env`, then set `ADMIN_KEY` (`openssl rand -base64 32`), the model, GPU memory utilization, and `VLLM_WSL2_ENABLE_PIN_MEMORY=0`. `chmod 600 .env`
+- Server `.env`: `cp .env.example .env`, then set `ADMIN_KEY` (`openssl rand -base64 32`), `VLLM_MODEL` and `VLLM_GPU_MEMORY_UTILIZATION` for this hardware. Compose refuses to start until all three are set. The pinned-memory switch defaults to 0, which is what this host wants. `chmod 600 .env`
 
 **Verify:** `docker run --rm --gpus all ubuntu nvidia-smi` shows the GPU, and `docker compose config --quiet` prints nothing.
 

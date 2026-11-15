@@ -3,18 +3,22 @@
 
 # See Makefile for example curl requests to hit the LLM and Gateway API.
 
-# Per-machine values come from .env in the repo root (copy .env.example). The
-# defaults below are what `make run-llm` used before .env existed.
-#
-# --enable-force-include-usage is deliberately a literal: streaming metering
-# depends on it, so it is not a per-machine choice.
+# The dev vLLM server. Per-machine values come from .env in the repo root; copy
+# .env.example.
+
+# The literals below should not change because api contracts depend on them:
+#   - vllm image tag is the pin the committed openapi.json capture describes.
+#       Changing it may cause drift in api responses.
+#   - enable-force-include-usage: streaming metering depends on it
+#   - one GPU: more would also need --tensor-parallel-size
 services:
   llm-server:
-    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.29.0}
+    image: vllm/vllm-openai:v0.29.0
     ipc: host
     ports:
-      # Only the host side is configurable; the process inside the container
-      # always listens on 8000, which is the address the gateway container uses.
+      # Only the host side is configurable. 8000 is the port the vLLM process
+      # listens on inside the container, which stays the address a containerized
+      # gateway uses whatever this is set to.
       - "${VLLM_PORT:-8000}:8000"
     volumes:
       - huggingface-cache:/root/.cache/huggingface
@@ -23,15 +27,15 @@ services:
       # Set to 1 in .env on a WSL2 box; a native Linux host needs nothing.
       - VLLM_WSL2_ENABLE_PIN_MEMORY=${VLLM_WSL2_ENABLE_PIN_MEMORY:-0}
     command: >
-      --model ${VLLM_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
-      --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:-0.85}
+      --model ${VLLM_MODEL:?set VLLM_MODEL in .env - copy .env.example}
+      --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:?set VLLM_GPU_MEMORY_UTILIZATION in .env - copy .env.example}
       --enable-force-include-usage
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: ${VLLM_GPU_COUNT:-1}
+              count: 1
               capabilities: [gpu]
 
 volumes:

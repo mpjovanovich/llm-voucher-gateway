@@ -46,6 +46,7 @@ Two images are ours; vLLM is the official image, unchanged.
 ### vLLM
 
 - Same GPU reservation and launch flags as [docker-compose.llm.yml](../docker-compose.llm.yml), including `--enable-force-include-usage`
+- The image tag is written out in both compose files rather than taken from `.env`. It is the pin the captured [api_documentation/](../docs/api_documentation/) describes, so it changes in a commit, not per machine
 - **No `ports:`**
 - No `--api-key`. Nothing outside the Docker network can reach it, and the gateway sends no upstream key. If vLLM ever gets a published port or moves to another host, add `--api-key` and have the gateway send it in the same change
 - `VLLM_WSL2_ENABLE_PIN_MEMORY=0` on the native Linux host, which is what both compose files default to. A WSL2 dev box is the one that sets it to 1, in its own `.env`
@@ -63,8 +64,10 @@ Two images are ours; vLLM is the official image, unchanged.
       max-file: "5"
   ```
 
-- Images are built on the server from a git checkout: `git pull && docker compose -f docker-compose.prod.yml up -d --build`. No registry
-- Per-machine values (admin key, model, GPU memory utilization) live in the server's `.env`, not in git. [.env.example](../.env.example) lists them; `ADMIN_KEY` is required, `GATEWAY_DATA_DIR` defaults to `/srv/llm-gateway/data`
+- Images are built on the server from a git checkout; no registry. Every change ships as `make deploy`, which is `git pull` and `up -d --build`
+- Lifecycle runs through the [Makefile](../Makefile), so one file shows how everything starts in both environments: `make deploy`, `run-prod`, `down-prod`, `ps-prod`, `logs-prod service=<name>`. They add the `-f docker-compose.prod.yml` flag and nothing else — `.env` stays the only place values are set
+- Per-machine values live in the server's `.env`, not in git. [.env.example](../.env.example) is the list. `ADMIN_KEY`, `VLLM_MODEL` and `VLLM_GPU_MEMORY_UTILIZATION` are **required**: compose stops with a message naming the variable rather than falling back to a dev value. `VLLM_PORT` is unused here and `GATEWAY_DATA_DIR` defaults to `/srv/llm-gateway/data`
+- `chmod 600 .env`. It holds the admin key
 - Compose project name is `llm-voucher-gateway-prod`, so it never collides with the dev project in the same checkout. On a dev box that means a separate Hugging Face cache volume, and the model downloads again
 - Caddy's config is bind-mounted from `./Caddyfile` beside the compose file. The mount uses long syntax, so a missing Caddyfile fails the start rather than being created as an empty directory
 - `depends_on` only orders startup. vLLM takes minutes to load a model; until it is ready the gateway is up but inference requests fail
@@ -89,7 +92,7 @@ The gateway is a product in its own right, not only Streamlit's backend. It is a
 
 - `/admin` is public over HTTPS and protected by the admin key alone
 - The loopback port is invisible from outside. It lets the admin skip Caddy and TLS, and it tells a proxy problem apart from a gateway problem
-- The Makefile's `api-*` targets hardcode `localhost:5131`. A `GATEWAY_URL` variable, defaulting to that, lets the same targets run against `localhost:8080` on the server
+- The Makefile's `api-*` targets still hardcode `localhost:5131` and `dev-admin-key`. A `GATEWAY_URL` variable defaulting to the dev address, and `ADMIN_KEY` from `.env`, let the same targets run against `localhost:8080` on the server — the first step of [Milestone 8c](pilot-roadmap.md#8c-gateway-on-host-loopback)
 
 **Docker-published ports bypass `ufw`.** Docker writes its own iptables rules. The only protection for `gateway` and `llm-server` is not publishing them beyond loopback.
 
@@ -129,10 +132,10 @@ Access is SSH to the server.
 ### Live
 
 ```
-docker compose -f docker-compose.prod.yml logs -f --since 1h gateway
+make logs-prod service=gateway
 ```
 
-Swap `gateway` for `caddy`, `web` or `llm-server`. Console logs rotate per the Compose `logging` block and disappear whenever a container is recreated, including on every rebuild. They are for watching, not for record.
+Swap `gateway` for `caddy`, `web` or `llm-server`; omit `service` for all of them. Console logs rotate per the Compose `logging` block and disappear whenever a container is recreated, including on every rebuild. They are for watching, not for record.
 
 ### Durable
 

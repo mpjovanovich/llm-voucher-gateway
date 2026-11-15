@@ -1,17 +1,14 @@
 # The production stack on the GPU server. See planning/vps-deployment.md.
 #
-#   git pull && docker compose -f docker-compose.prod.yml up -d --build
+#   make deploy
 #
-# Requires the NVIDIA Container Toolkit, a Caddyfile beside this file, and a .env
-# (copy .env.example) that sets at least ADMIN_KEY. The host data directory must be
-# writable by the gateway's UID 1654: chown 1654 /srv/llm-gateway/data
+# Requires the NVIDIA Container Toolkit, a Caddyfile beside this file, and a
+# .env (copy .env.example).The host data directory must be writable by the
+# gateway's UID 1654: chown 1654 /srv/llm-gateway/data
 #
 # Caddy is the only public entry point. The gateway is published on host loopback
-# for admin use over SSH. vLLM has no published port and no --api-key; if it ever
-# gets either a port or another host, add --api-key and have the gateway send it.
+# for admin use over SSH. vLLM has no published port and no --api-key.
 
-# Kept apart from the dev project in docker-compose.llm.yml, which shares this
-# directory, so bringing one up never recreates the other's containers.
 name: llm-voucher-gateway-prod
 
 x-logging: &logging
@@ -71,10 +68,8 @@ services:
     depends_on:
       - gateway
 
-  # --enable-force-include-usage is deliberately a literal: streaming metering
-  # depends on it, so it is not a per-machine choice.
   llm-server:
-    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.29.0}
+    image: vllm/vllm-openai:v0.29.0
     restart: unless-stopped
     logging: *logging
     ipc: host
@@ -83,15 +78,15 @@ services:
     environment:
       - VLLM_WSL2_ENABLE_PIN_MEMORY=${VLLM_WSL2_ENABLE_PIN_MEMORY:-0}
     command: >
-      --model ${VLLM_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
-      --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:-0.85}
+      --model ${VLLM_MODEL:?set VLLM_MODEL in .env - copy .env.example}
+      --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:?set VLLM_GPU_MEMORY_UTILIZATION in .env - copy .env.example}
       --enable-force-include-usage
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: ${VLLM_GPU_COUNT:-1}
+              count: 1
               capabilities: [gpu]
 
 volumes:

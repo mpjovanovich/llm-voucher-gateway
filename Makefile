@@ -1,21 +1,34 @@
 # Needed so that Make knows these are not actual files
-.PHONY: clean down migration
+.PHONY: clean down migration require-model
 .PHONY: run-api run-llm run-web
 .PHONY: api-check-completion-nostream api-check-completion-streaming api-mint-voucher
 .PHONY: llm-check-life
+.PHONY: deploy run-prod down-prod ps-prod logs-prod
 
 # ########################################
 # LLM CONFIG
 # ########################################
-# Shared with docker compose so the curl helpers below target the same model and
-# port as the running server. Defaults match docker-compose.llm.yml.
-# ?= leaves a shell-exported value alone; `export` hands the resolved values to
-# compose, so make and compose cannot disagree.
+# .env in this directory is the only place per-machine values are set; copy
+# .env.example. Both docker compose and this file read it, so the curl helpers
+# below target the same model and port as the running server.
 -include .env
 
-VLLM_MODEL ?= Qwen/Qwen2.5-0.5B-Instruct
+# VLLM_PORT is the one value with a default here, because 8000 is the port the
+# vLLM process listens on inside its container rather than a per-machine
+# opinion. VLLM_MODEL deliberately gets none: the compose files require it, and
+# a default here would hide a missing .env behind someone else's model.
 VLLM_PORT ?= 8000
-export
+
+# Named rather than a bare `export`, which would also put a secret from .env
+# (ADMIN_KEY) into the environment of every recipe. Exporting these two is what
+# keeps make and compose agreeing: compose prefers a shell value over .env, so
+# handing it make's value means one file decides for both.
+export VLLM_MODEL VLLM_PORT
+
+# Production is the same stack with a different compose file. These targets are
+# thin wrappers that add the -f flag and nothing else, so .env stays the only
+# place production values are set.
+COMPOSE_PROD := docker compose -f docker-compose.prod.yml
 
 # ########################################
 # VENV CONFIG
@@ -46,9 +59,14 @@ migration:
 	ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations add $(name) \
 		--project src/LlmVoucherGateway.Api --output-dir Persistence/Migrations
 
-# Gateway API on http://localhost:5131, pointed at the vLLM from run-llm
+# Gateway API on http://localhost:5131, pointed at the vLLM from run-llm.
+# Inference__BaseUrl follows VLLM_PORT so the gateway cannot end up dialing a
+# port vLLM was not published on. ASP.NET reads it from the environment, which
+# overrides the value in appsettings.Development.json; launching from an IDE
+# instead takes that file's value.
 run-api:
-	dotnet run --project src/LlmVoucherGateway.Api --launch-profile http
+	Inference__BaseUrl=http://localhost:$(VLLM_PORT) \
+		dotnet run --project src/LlmVoucherGateway.Api --launch-profile http
 
 run-llm:
 	docker compose -f docker-compose.llm.yml up -d
@@ -65,9 +83,14 @@ count ?= 1
 allowance ?= 10000
 days ?= 30
 
+# Fails with a message instead of sending a request with an empty model id
+require-model:
+	@test -n "$(VLLM_MODEL)" || \
+		{ echo "VLLM_MODEL is not set. Copy .env.example to .env."; exit 1; }
+
 # Requires a voucher to be minted first.
 # make api-check-completion-nostream key=<voucher-key>
-api-check-completion-nostream:
+api-check-completion-nostream: require-model
 	curl -sS -w '\n' http://localhost:5131/v1/chat/completions \
 		-H "Authorization: Bearer $(key)" \
 		-H "Content-Type: application/json" \
@@ -75,7 +98,7 @@ api-check-completion-nostream:
 
 # Requires a voucher to be minted first.
 # make api-check-completion key=<voucher-key>
-api-check-completion-streaming:
+api-check-completion-streaming: require-model
 	curl -sS -w '\n' http://localhost:5131/v1/chat/completions \
 		-H "Authorization: Bearer $(key)" \
 		-H "Content-Type: application/json" \
@@ -92,3 +115,25 @@ api-mint-voucher:
 # Hits the vLLM container directly, bypassing the gateway
 llm-check-life:
 	curl -sS -w '\n' http://localhost:$(VLLM_PORT)/v1/models
+
+# ########################################
+# PRODUCTION
+# ########################################
+# Run from the checkout on the server. See planning/vps-deployment.md.
+
+# How every change ships: images are built on the server, there is no registry
+deploy:
+	git pull && $(COMPOSE_PROD) up -d --build
+
+run-prod:
+	$(COMPOSE_PROD) up -d --build
+
+down-prod:
+	$(COMPOSE_PROD) down
+
+ps-prod:
+	$(COMPOSE_PROD) ps
+
+# make logs-prod service=gateway  (omit service for all of them)
+logs-prod:
+	$(COMPOSE_PROD) logs -f --since 1h $(service)
