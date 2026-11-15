@@ -13,6 +13,12 @@
 
 # The gateway: the OpenAI-shaped API for harnesses, and /admin for vouchers.
 {$LLM_HOSTNAME} {
+	# The health probe is for operators and containers, not the internet. It
+	# stays reachable on the gateway's loopback port (curl localhost:8080/health
+	# over SSH) and inside the Docker network. Unauthenticated by design, so it
+	# is hidden here rather than given a key.
+	respond /health* 404
+
 	reverse_proxy gateway:8080 {
 		# Forward each chunk as it arrives. Caddy already does this for
 		# text/event-stream; stated because a buffered stream makes a harness

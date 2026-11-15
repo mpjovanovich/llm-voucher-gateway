@@ -237,12 +237,13 @@ Every `docker compose` command below means `docker compose -f docker-compose.pro
 ### 8d. Caddy, DNS and HTTPS
 
 - DNS: A records for both hostnames pointing at the server, **grey cloud (DNS only)** in Cloudflare
-- The [Caddyfile](../Caddyfile) is written but **`caddy validate` has never been run**. Run it first: `docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile`
+- The [Caddyfile](../Caddyfile) passes `caddy validate` on the dev box, with example hostnames. Re-run it on the server against the real `.env`: `docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile`
 - `docker compose up -d --build`. This also starts `web`, which has had nothing to test it through until now
 
 **Verify:**
 
 - From your laptop, `curl https://llm.example.edu/v1/models` returns the OpenAI-shaped `401`, with no certificate warning
+- `curl https://llm.example.edu/health` returns `404`. Caddy hides the probe from the internet; it is unauthenticated by design and stays reachable on `localhost:8080` over SSH
 - `https://chat.example.edu` in a browser: a voucher pasted into the sidebar lists the model, and a chat streams
 
 ### 8e. Streaming through Caddy
