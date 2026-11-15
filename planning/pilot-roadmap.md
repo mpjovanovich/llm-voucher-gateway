@@ -186,6 +186,48 @@ _Complete_ — see [vllm-configuration.md](vllm-configuration.md)
 - Both environments start from the [Makefile](../Makefile), so one file answers "how does everything start": dev is `run-llm`, `run-api`, `run-web`; production is `deploy`, `run-prod`, `down-prod`, `ps-prod`, `logs-prod service=<name>`. The production targets add the `-f` flag and nothing else
 - `make run-api` derives `Inference__BaseUrl` from `VLLM_PORT`, so changing the port cannot leave the gateway dialing a port vLLM was not published on
 
+## 7.7 Remaining config items so that they can be removed from below sections
+
+### A. Config only — no code change, doable now off-GPU
+
+| #   | Item                                                | Where it lands                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | Forwarded headers + explicit environment (8f, part) | Two lines in the gateway's `environment:` in `docker-compose.prod.yml`: `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` and `ASPNETCORE_ENVIRONMENT=Production` (currently relying on the image default). This is the host-level switch, so no `Program.cs` change — and it retires the floating comment at `VoucherIssuanceEndpoint.cs:44`                                                                                                                                           |
+| A2  | Durable file logs (8g)                              | A new `appsettings.Production.json` with a `WriteTo` File sink (`/data/logs/gateway-.log`, daily, 30 kept, `CompactJsonFormatter`). I verified the packages are already in the graph transitively via `Serilog.AspNetCore`: `Serilog.Sinks.File/7.0.0` and `Serilog.Formatting.Compact/3.0.0`. Zero code, zero new packages. A separate Production file rather than `appsettings.json` because a `WriteTo` array can't be un-set by an override, and the dev host has no `/data` |
+| A3  | Makefile `GATEWAY_URL` + `ADMIN_KEY` (8c)           | The `api-*` targets hardcode `localhost:5131` and `dev-admin-key`. Add `GATEWAY_URL ?= http://localhost:5131` and take `ADMIN_KEY` from `.env`. To avoid a second copy of the dev key, `run-api` should inject `Admin__Keys__0=$(ADMIN_KEY)` the same way it now injects `Inference__BaseUrl` — `appsettings.Development.json` keeps `dev-admin-key` for the IDE path                                                                                                            |
+| A4  | Caddyfile (8d)                                      | Doesn't exist yet; content is already written out in `vps-deployment.md`. Worth adding with `{$LLM_HOSTNAME}` / `{$CHAT_HOSTNAME}` / `{$ACME_EMAIL}` rather than literal hostnames — Caddy does parse-time `{$VAR}` substitution — plus an `environment:` block on the `caddy` service to pass them in. That keeps the institution's real hostnames in `.env` instead of git, which is the same test everything else passed                                                      |
+| A5  | sqlite-web (8h)                                     | A service under `profiles: [tools]`, pinned tag, published on `127.0.0.1:8081` only, mounting the data volume. Pure compose                                                                                                                                                                                                                                                                                                                                                      |
+| A6  | Web UI timeouts                                     | `app.py:44` hardcodes `timeout=60, max_retries=1`. `MAX_FILE_CHARS` and `MAX_HISTORY_CHARS` are already env-driven but absent from `.env.example`. Note the conflict: `vps-deployment.md:118` says long generations survive end to end, but the browser client gives up at 60s — on a slow box with a real model that will bite                                                                                                                                                  |
+
+### B. Config, but needs a live GPU to verify
+
+- **`VLLM_MAX_MODEL_LEN` (Milestone 10)** — a required `.env` variable feeding `--max-model-len` in both compose files. Mechanically trivial, but it changes whether KV cache fits in 8GB, so it belongs to a session where you can watch vLLM start. This is the last genuinely per-machine value that isn't yet in `.env`.
+- **Tool calling (Milestone 11)** — `--enable-auto-tool-choice --tool-call-parser <parser>`. I'd leave these out. The parser name is a function of the model, so the two move with `VLLM_MODEL`, and the roadmap already says a harness sending tools is a return trip to Milestone 1 for a re-capture. Also flagging a contradiction: roadmap Milestone 11 lists `--api-key <shared-or-per-student-key>`, while `vps-deployment.md:50` deliberately decides against an upstream key. One of those should change.
+
+### C. Needs real code — noting only, per your instruction
+
+- **Request logging with a correlation ID (8f, rest)** — `UseSerilogRequestLogging()` is one line, but the correlation ID needs a middleware or enricher plus an `appsettings` template. Small-to-moderate.
+- **`/health` and OpenAI-shaped unhandled errors (8i)** — a health check that probes the upstream, and a branch in `ExceptionHandler.cs` so `/v1` paths leave through `OpenAiErrorResults` instead of `ProblemDetails`. It currently always writes `ProblemDetails`. Moderate, and the error-shape half is the one with harness consequences.
+- **Issuance alert (Milestone 9)** — would introduce a new config surface (SMTP or webhook URL). Don't invent it before the feature.
+
+### Housekeeping found along the way
+
+- Seven stale `api_documentation/` references from the `docs/` move. Three are broken markdown links in `pilot-roadmap.md` (lines 26, 28, 66, 124) and one in `tests/.../Fixtures/README.md:9`; the rest are prose mentions in `OpenAiError.cs:11` and the `.http` file.
+- `GATEWAY_BASE_URL` is set twice — `ENV` in the Web Dockerfile and again in the prod compose `environment:`. Pick one; compose is the better home.
+- The `.http` file's `@baseUrl`/`@adminKey` can't read `.env`, so those stay hardcoded. Fine, just don't count it as drift.
+
+### Recommended sequencing
+
+1. **A3** (Makefile `GATEWAY_URL`/`ADMIN_KEY`) first — every later verification step in Milestone 8 runs through those targets, and it's the only item you can fully test today.
+2. **A1** (two compose env lines) — one minute, and it makes the issuance log line truthful the moment Caddy is in front.
+3. **A2** (`appsettings.Production.json`) — write it before the first deploy so logs exist from the first request rather than being retrofitted after you've lost the interesting ones.
+4. **A4** (Caddyfile + hostname variables) — the hard blocker for any HTTPS step; nothing in 8d can start without it.
+5. **A5** (sqlite-web) and **A6** (web timeouts) — independent, cheap, batch them in with 4.
+6. **Housekeeping links** — fold into whichever pass touches those files.
+7. **B** (`VLLM_MAX_MODEL_LEN`) — at the GPU box, in the same session as the first real model load.
+
+After 1–6, every per-machine value lives in `.env` and no literal in a compose file or `appsettings` is a machine choice. That's the point where you can call configuration done: what's left in Milestone 8 is behind the two code items in group C, and the remaining milestone references in comments are about features, not configuration.
+
 ---
 
 ## 8. Deployment and operational readiness
