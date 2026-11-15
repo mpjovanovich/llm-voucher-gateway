@@ -123,10 +123,10 @@ llm-check-life:
 
 # How every change ships: images are built on the server, there is no registry
 deploy:
-	git pull && $(COMPOSE_PROD) up -d --build
+	git pull && $(COMPOSE_PROD) build
 
 run-prod:
-	$(COMPOSE_PROD) up -d --build
+	$(COMPOSE_PROD) up -d
 
 down-prod:
 	$(COMPOSE_PROD) down
