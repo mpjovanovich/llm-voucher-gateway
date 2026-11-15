@@ -74,8 +74,14 @@ services:
       context: src/LlmVoucherGateway.Web
     restart: unless-stopped
     logging: *logging
+    # Empty when .env does not set them, which app.py reads as "use the default".
+    # Keeps the defaults in one file instead of a second copy here.
     environment:
       - GATEWAY_BASE_URL=http://gateway:8080/v1
+      - GATEWAY_TIMEOUT_SECONDS=${GATEWAY_TIMEOUT_SECONDS:-}
+      - GATEWAY_MAX_RETRIES=${GATEWAY_MAX_RETRIES:-}
+      - MAX_FILE_CHARS=${MAX_FILE_CHARS:-}
+      - MAX_HISTORY_CHARS=${MAX_HISTORY_CHARS:-}
     depends_on:
       - gateway
 

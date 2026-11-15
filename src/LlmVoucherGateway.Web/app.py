@@ -7,13 +7,33 @@ from openai import OpenAI, APIConnectionError, APIStatusError
 ## ###########################################################
 # Config (override with env vars in prod)
 ## ###########################################################
+
+
+def _env_int(name: str, default: int) -> int:
+    """
+    Compose passes an empty string for a variable .env does not set, and
+    int("") raises. Defaults live here rather than being repeated in compose.
+    """
+    try:
+        return int(os.getenv(name) or default)
+    except ValueError:
+        return default
+
+
 BASE_URL = os.getenv("GATEWAY_BASE_URL", "http://localhost:5131/v1")
 
 # per file, ~3k tokens
-MAX_FILE_CHARS = int(os.getenv("MAX_FILE_CHARS", 12_000))
+MAX_FILE_CHARS = _env_int("MAX_FILE_CHARS", 12_000)
 
 # total sent per request
-MAX_HISTORY_CHARS = int(os.getenv("MAX_HISTORY_CHARS", 24_000))
+MAX_HISTORY_CHARS = _env_int("MAX_HISTORY_CHARS", 24_000)
+
+# A read timeout: httpx resets it on every chunk, so this bounds how long the
+# server may go silent, not how long a generation may run. The exposure it
+# covers is time to first token on a cold model with a long prompt.
+GATEWAY_TIMEOUT_SECONDS = _env_int("GATEWAY_TIMEOUT_SECONDS", 300)
+
+GATEWAY_MAX_RETRIES = _env_int("GATEWAY_MAX_RETRIES", 1)
 
 # Dev note: not all of these have been manually tested
 FILE_TYPES = [
@@ -41,7 +61,12 @@ st.session_state.setdefault("msgs", [])
 ## ###########################################################
 @st.cache_resource
 def get_client(token: str) -> OpenAI:
-    return OpenAI(base_url=BASE_URL, api_key=token, timeout=60, max_retries=1)
+    return OpenAI(
+        base_url=BASE_URL,
+        api_key=token,
+        timeout=GATEWAY_TIMEOUT_SECONDS,
+        max_retries=GATEWAY_MAX_RETRIES,
+    )
 
 
 @st.cache_data(ttl=300)

@@ -106,7 +106,7 @@ Written out in [Caddyfile](../Caddyfile), which uses `{$LLM_HOSTNAME}`, `{$CHAT_
 - **Cloudflare records are DNS only (grey cloud), not proxied.** Cloudflare's proxy cuts responses off at 100 seconds, which kills long generations, and it puts its own addresses in front of every client
 - **Hostnames over paths:** Streamlit under a subpath needs `baseUrlPath` and is fiddly. A hostname per app keeps the client base URL a plain `https://llm.example.edu/v1`
 - **Streaming:** Caddy flushes `text/event-stream` immediately; `flush_interval -1` makes that explicit. **No `encode` on the gateway site**, since compression is the likeliest thing to buffer a stream. Re-run Milestone 3's per-chunk timing through Caddy
-- **Timeouts:** Caddy and Kestrel have no default response timeout, and the gateway's `HttpClient.Timeout` is infinite. Long generations survive end to end. Do not add a timeout without considering streams
+- **Timeouts:** Caddy and Kestrel have no default response timeout, and the gateway's `HttpClient.Timeout` is infinite. Long generations survive end to end. Do not add a timeout without considering streams. The Streamlit client is the one hop with a timeout, `GATEWAY_TIMEOUT_SECONDS` (default 300), and it is a read timeout reset by every chunk — so it bounds silence from the server, mostly time to first token, not generation length
 - **Client addresses:** set `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` on the gateway. It trusts `X-Forwarded-For` from any sender, which is safe here because the only non-loopback way in is Caddy. Without it every logged address is Caddy's
 - **WebSockets:** Streamlit needs them; Caddy proxies them with no configuration
 - **Rate limiting:** none. Voucher allowances cap usage
