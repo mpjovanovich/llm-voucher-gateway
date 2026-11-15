@@ -29,6 +29,7 @@ services:
     command: >
       --model ${VLLM_MODEL:?set VLLM_MODEL in .env - copy .env.example}
       --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:?set VLLM_GPU_MEMORY_UTILIZATION in .env - copy .env.example}
+      --max-model-len ${VLLM_MAX_MODEL_LEN:?set VLLM_MAX_MODEL_LEN in .env - copy .env.example}
       --enable-force-include-usage
     deploy:
       resources:

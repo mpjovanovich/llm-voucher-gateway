@@ -201,7 +201,7 @@ _Complete_ — see [vllm-configuration.md](../docs/configuration/vllm-configurat
 
 ### B. Config, but needs a live GPU to verify
 
-- **`VLLM_MAX_MODEL_LEN` (Milestone 10)** — a required `.env` variable feeding `--max-model-len` in both compose files. Mechanically trivial, but it changes whether KV cache fits in 8GB, so it belongs to a session where you can watch vLLM start. This is the last genuinely per-machine value that isn't yet in `.env`.
+- _COMPLETE_ — **`VLLM_MAX_MODEL_LEN` (Milestone 10)** — a required `.env` variable feeding `--max-model-len` in both compose files. Verified on the dev box (RTX 3060 12GB, `Qwen/Qwen2.5-0.5B-Instruct`): an override of `8192` showed up as `max_model_len` in `GET /v1/models`, and the `.env` value of `32768` after a restart. The right value for the 8GB production card and the real model is still Milestone 10's to settle.
 - **Tool calling (Milestone 11)** — `--enable-auto-tool-choice --tool-call-parser <parser>`. I'd leave these out. The parser name is a function of the model, so the two move with `VLLM_MODEL`, and the roadmap already says a harness sending tools is a return trip to Milestone 1 for a re-capture. Also flagging a contradiction: roadmap Milestone 11 lists `--api-key <shared-or-per-student-key>`, while `vps-deployment.md:50` deliberately decides against an upstream key. One of those should change.
 
 ### C. Needs real code — noting only, per your instruction
@@ -224,7 +224,7 @@ _Complete_ — see [vllm-configuration.md](../docs/configuration/vllm-configurat
 4. ~~**A4** (Caddyfile + hostname variables)~~ — _done_, except `caddy validate`, which needs a Docker daemon.
 5. ~~**A5** (sqlite-web)~~ and ~~**A6** (web timeouts)~~ — _done_.
 6. ~~**Housekeeping links**~~ — _done_.
-7. **B** (`VLLM_MAX_MODEL_LEN`) — at the GPU box, in the same session as the first real model load.
+7. ~~**B** (`VLLM_MAX_MODEL_LEN`)~~ — _done_ on the dev GPU box.
 
 After 1–6, every per-machine value lives in `.env` and no literal in a compose file or `appsettings` is a machine choice. That's the point where you can call configuration done: what's left in Milestone 8 is behind the two code items in group C, and the remaining milestone references in comments are about features, not configuration.
 
@@ -234,11 +234,18 @@ After 1–6, every per-machine value lives in `.env` and no literal in a compose
 
 See [vps-deployment.md](vps-deployment.md).
 
-Note - Small scale hardware confirmed:
+Note - Current dev machine:
+
+```
+Geforce RTX 3060 12GB
+32GB RAM
+```
+
+Note - Pilot (prod) machine:
 
 ```
 GeForce RTX 5060 8GB vRAM
-64GB RAM on host machine
+64GB RAM
 ```
 
 Bring the stack up one service at a time, inside out, so each failure has one suspect. Components for production server are listed below. These are the sub-milestones.
@@ -370,6 +377,16 @@ _Proposed model_: Qwen3.5-9B
 After loading the model into VRAM, the remaining space is allocated to KV cache. This is what's left to handle user context from requests and the model's responses. Because there are only 8GB VRAM, we may see some blocking if many users hit the system at the same time or when users have a large context.
 
 A better card for this at the same price point would be an RTX 3060, w/ 12GB VRAM.
+
+### 10.1 Note on HuggingFace usage
+
+We get this warning from the vLLM image on boot - does it matter?
+
+We can't really tie this to any particular HuggingFace account, so we're probably doing the best we can with this limitation.
+
+```
+(APIServer pid=1) Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+```
 
 ---
 

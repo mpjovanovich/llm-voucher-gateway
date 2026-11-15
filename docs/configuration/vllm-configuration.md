@@ -27,6 +27,7 @@ there is one place to look and no way for two layers to disagree. A fresh clone 
 | ----------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `VLLM_MODEL`                  | yes                         | `--model`, and the `model` field in the Makefile's curl helpers                                                      |
 | `VLLM_GPU_MEMORY_UTILIZATION` | yes                         | `--gpu-memory-utilization`                                                                                           |
+| `VLLM_MAX_MODEL_LEN`          | yes                         | `--max-model-len`. Longest context in tokens one request may use, prompt plus response; at most the model's own limit |
 | `VLLM_PORT`                   | no, `8000`                  | Host side of `ports`, and the Makefile's `llm-check-life` and `run-api`. Dev only; production publishes no vLLM port |
 | `VLLM_WSL2_ENABLE_PIN_MEMORY` | no, `0`                     | Container environment variable of the same name. `1` on a WSL2 box, where vLLM keeps pinned memory opt-in            |
 | `ADMIN_KEY`                   | yes, production             | `Admin__Keys__0` on the gateway service                                                                              |
@@ -53,9 +54,9 @@ case where the pinned-memory switch means nothing.
 
 TODO:
 
-`--max-model-len` and the tool-calling flags (`--enable-auto-tool-choice`,
-`--tool-call-parser`) are settled in Milestones 10 and 11. Each arrives as a required
-variable or a literal by the same test: is it a per-machine decision?
+The tool-calling flags (`--enable-auto-tool-choice`, `--tool-call-parser`) are settled
+in Milestone 11. Each arrives as a required variable or a literal by the same test: is
+it a per-machine decision?
 
 ---
 
