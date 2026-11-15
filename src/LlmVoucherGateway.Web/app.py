@@ -3,6 +3,7 @@ import os
 
 import streamlit as st
 from openai import OpenAI, APIConnectionError, APIStatusError
+from pypdf import PdfReader
 
 ## ###########################################################
 # Config (override with env vars in prod)
@@ -35,14 +36,13 @@ GATEWAY_TIMEOUT_SECONDS = _env_int("GATEWAY_TIMEOUT_SECONDS", 300)
 
 GATEWAY_MAX_RETRIES = _env_int("GATEWAY_MAX_RETRIES", 1)
 
-# Dev note: not all of these have been manually tested
 FILE_TYPES = [
     "csv",
     "html",
     "json",
     "log",
     "md",
-    "pdf"
+    "pdf",
     "py",
     "sql",
     "txt",
@@ -77,7 +77,7 @@ def list_models(token: str) -> list[str]:
 
 def read_file(f) -> tuple[str, bool]:
     """Returns (text, was_truncated) for an uploaded file."""
-    if f.name.lower().endswith(".pdf") and PdfReader:
+    if f.name.lower().endswith(".pdf"):
         text = "\n".join(page.extract_text() or ""
                          for page in PdfReader(f).pages)
     else:
