@@ -1,8 +1,6 @@
 # VPS deployment
 
-How the pilot runs on its server. Settled during [Milestone 7.6](pilot-roadmap.md#76-vps-deployment-plan); the files it describes land in Milestone 8.
-
-The pilot is casual: one server, one developer, not a critical system. Choices favor fewer moving parts over hardening.
+The current version of the application is meant for: one server, low reliability expectations. Choices favor fewer moving parts over hardening.
 
 ---
 
@@ -10,12 +8,12 @@ The pilot is casual: one server, one developer, not a critical system. Choices f
 
 Everything runs on one server, which has the GPU. One Compose project holds four services on one Docker network:
 
-| Service | Image | Listens on | Published to the host |
-| --- | --- | --- | --- |
-| `caddy` | `caddy:2` | 80, 443 | `80:80`, `443:443` |
-| `gateway` | built from `src/LlmVoucherGateway.Api` | 8080 | `127.0.0.1:8080:8080` |
-| `web` | built from `src/LlmVoucherGateway.Web` | 8501 | none |
-| `llm-server` | `vllm/vllm-openai` (pinned tag) | 8000 | none |
+| Service      | Image                                  | Listens on | Published to the host |
+| ------------ | -------------------------------------- | ---------- | --------------------- |
+| `caddy`      | `caddy:2`                              | 80, 443    | `80:80`, `443:443`    |
+| `gateway`    | built from `src/LlmVoucherGateway.Api` | 8080       | `127.0.0.1:8080:8080` |
+| `web`        | built from `src/LlmVoucherGateway.Web` | 8501       | none                  |
+| `llm-server` | `vllm/vllm-openai` (pinned tag)        | 8000       | none                  |
 
 Caddy is the only public entry point. vLLM is reachable only from inside the Docker network.
 
@@ -64,7 +62,7 @@ Two images are ours; vLLM is the official image, unchanged.
       max-file: "5"
   ```
 
-- Images are built on the server from a git checkout; no registry. Every change ships as `make deploy`, which is `git pull` and `up -d --build`
+- Images are built on the server from a git checkout; no registry. Every change ships as `make deploy`, which pulls the git repo and build the image. Then `make run-prod` to bring it up.
 - Lifecycle runs through the [Makefile](../Makefile), so one file shows how everything starts in both environments: `make deploy`, `run-prod`, `down-prod`, `ps-prod`, `logs-prod service=<name>`. They add the `-f docker-compose.prod.yml` flag and nothing else — `.env` stays the only place values are set
 - Per-machine values live in the server's `.env`, not in git. [.env.example](../.env.example) is the list. `ADMIN_KEY`, `VLLM_MODEL` and `VLLM_GPU_MEMORY_UTILIZATION` are **required**: compose stops with a message naming the variable rather than falling back to a dev value. `VLLM_PORT` is unused here and `GATEWAY_DATA_DIR` defaults to `/srv/llm-gateway/data`
 - `chmod 600 .env`. It holds the admin key
@@ -82,13 +80,13 @@ The dev workflow stays as it is: vLLM in a container, gateway and web UI on the 
 
 The gateway is a product in its own right, not only Streamlit's backend. It is a pass-through to vLLM and the endpoint for managing vouchers.
 
-| Caller | Address | Path through the stack |
-| --- | --- | --- |
-| Harnesses and IDE extensions (Aider, OpenCode, VS Code) | `https://llm.example.edu/v1`, voucher as bearer | Caddy → `gateway:8080` |
-| Admin, managing vouchers | `https://llm.example.edu/admin/...`, admin key as bearer | Caddy → `gateway:8080` |
-| Admin, on the server | `http://localhost:8080/...` over SSH | Host loopback → `gateway:8080` |
-| Students in a browser | `https://chat.example.edu` | Caddy → `web:8501` |
-| Streamlit's server process | `http://gateway:8080/v1` | Docker network only |
+| Caller                                                  | Address                                                  | Path through the stack         |
+| ------------------------------------------------------- | -------------------------------------------------------- | ------------------------------ |
+| Harnesses and IDE extensions (Aider, OpenCode, VS Code) | `https://llm.example.edu/v1`, voucher as bearer          | Caddy → `gateway:8080`         |
+| Admin, managing vouchers                                | `https://llm.example.edu/admin/...`, admin key as bearer | Caddy → `gateway:8080`         |
+| Admin, on the server                                    | `http://localhost:8080/...` over SSH                     | Host loopback → `gateway:8080` |
+| Students in a browser                                   | `https://chat.example.edu`                               | Caddy → `web:8501`             |
+| Streamlit's server process                              | `http://gateway:8080/v1`                                 | Docker network only            |
 
 - `/admin` is public over HTTPS and protected by the admin key alone
 - The loopback port is invisible from outside. It lets the admin skip Caddy and TLS, and it tells a proxy problem apart from a gateway problem

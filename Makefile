@@ -43,8 +43,11 @@ $(VENV)/.installed: $(WEB_DIR)/requirements.txt
 	touch $@
 
 # ########################################
-# START/STOP/BUILD SCRIPTS
+# DEVELOPMENT: START/STOP/BUILD SCRIPTS
 # ########################################
+# These are not to be used in prod. They're for bringing up/down the components
+# of the application while devs work on it.
+
 # Removes bin and obj folders from all projects
 clean:
 	find . -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
@@ -59,11 +62,6 @@ migration:
 	ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations add $(name) \
 		--project src/LlmVoucherGateway.Api --output-dir Persistence/Migrations
 
-# Gateway API on http://localhost:5131, pointed at the vLLM from run-llm.
-# Inference__BaseUrl follows VLLM_PORT so the gateway cannot end up dialing a
-# port vLLM was not published on. ASP.NET reads it from the environment, which
-# overrides the value in appsettings.Development.json; launching from an IDE
-# instead takes that file's value.
 run-api:
 	Inference__BaseUrl=http://localhost:$(VLLM_PORT) \
 		dotnet run --project src/LlmVoucherGateway.Api --launch-profile http
