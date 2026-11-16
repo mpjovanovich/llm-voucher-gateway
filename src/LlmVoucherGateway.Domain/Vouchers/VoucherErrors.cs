@@ -8,4 +8,5 @@ internal static class VoucherErrors
     public const string KeyPrefixRequired = "Voucher key missing prefix";
     public const string PlaintextValueRequired = "Voucher plaintext value is required";
     public const string ConsumedTokensMustNotBeNegative = "Consumed tokens must not be negative";
+    public const string RevocationReasonRequired = "Revocation reason is required";
 }

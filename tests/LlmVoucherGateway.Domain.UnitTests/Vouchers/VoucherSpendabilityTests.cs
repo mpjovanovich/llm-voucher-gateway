@@ -43,7 +43,7 @@ public class VoucherSpendabilityTests
     public void CheckSpendability_WhenRevoked_IsRevoked()
     {
         Voucher voucher = IssuedVoucher();
-        voucher.Revoke();
+        voucher.Revoke("withdrawn");
 
         VoucherSpendability spendability = voucher.CheckSpendability(
             new FakeDateTimeProvider(IssuedAt)
@@ -56,7 +56,7 @@ public class VoucherSpendabilityTests
     public void CheckSpendability_WhenRevokedAndExpired_ReportsRevoked()
     {
         Voucher voucher = IssuedVoucher();
-        voucher.Revoke();
+        voucher.Revoke("withdrawn");
 
         // Precedence: an administrator withdrawing a voucher is the more actionable
         // answer for whoever is holding it.

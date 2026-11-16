@@ -42,6 +42,10 @@ public sealed class Voucher : Entity
     // from a request at that date.
     public DateTimeOffset? LastRequestedAt { get; private set; }
 
+    // Null until revoked. The first reason is the record of why; a later revocation
+    // leaves it in place.
+    public string? RevocationReason { get; private set; }
+
     /// <summary>
     /// Whether this voucher may be spent right now. Takes the clock rather than reading
     /// it, so the rule is testable at the instant either side of a boundary.
@@ -72,12 +76,23 @@ public sealed class Voucher : Entity
         return VoucherSpendability.Spendable;
     }
 
-    // Idempotent: revoking a revoked voucher already satisfies the caller's intent. The
-    // endpoint and the recorded reason are Milestone 9; the transition lives here because
-    // the rule that reads it does.
-    public void Revoke()
+    // Idempotent: revoking a revoked voucher already satisfies the caller's intent, and
+    // the first reason stays the record of why. The reason is required because a
+    // withdrawal with nothing written down cannot be told apart from a mistake later.
+    public void Revoke(string? reason)
     {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ArgumentException(VoucherErrors.RevocationReasonRequired, nameof(reason));
+        }
+
+        if (Status == VoucherStatus.Revoked)
+        {
+            return;
+        }
+
         Status = VoucherStatus.Revoked;
+        RevocationReason = reason.Trim();
     }
 
     // Accepts a total above the allowance. The budget is soft by design, and refusing to

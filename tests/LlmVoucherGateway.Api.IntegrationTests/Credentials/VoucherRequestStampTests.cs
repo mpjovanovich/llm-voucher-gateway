@@ -42,7 +42,7 @@ public class VoucherRequestStampTests
     [Fact]
     public async Task ChatCompletions_WithARevokedVoucher_StampsTheRequestTimeAnyway() =>
         await AssertRejectionIsStampedAsync(
-            voucher => voucher.Revoke(),
+            voucher => voucher.Revoke("withdrawn"),
             HttpStatusCode.Unauthorized
         );
 

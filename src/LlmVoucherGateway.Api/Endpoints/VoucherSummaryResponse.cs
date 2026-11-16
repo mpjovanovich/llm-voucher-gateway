@@ -6,6 +6,7 @@ namespace LlmVoucherGateway.Api.Endpoints;
 /// One voucher as an operator sees it after issuance. Deliberately has no key field:
 /// the plaintext left in the issuance response and the database holds only a hash, so
 /// there is nothing to show. The prefix is how a row is matched to a request line.
+/// <c>RevocationReason</c> is null until the voucher is revoked.
 /// </summary>
 internal sealed record VoucherSummaryResponse(
     Guid Id,
@@ -16,7 +17,8 @@ internal sealed record VoucherSummaryResponse(
     string Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
-    DateTimeOffset? LastRequestedAt
+    DateTimeOffset? LastRequestedAt,
+    string? RevocationReason
 )
 {
     public static VoucherSummaryResponse From(Voucher voucher) =>
@@ -29,6 +31,7 @@ internal sealed record VoucherSummaryResponse(
             voucher.Status.ToString(),
             voucher.Lifetime.CreatedAt,
             voucher.Lifetime.ExpiresAt,
-            voucher.LastRequestedAt
+            voucher.LastRequestedAt,
+            voucher.RevocationReason
         );
 }

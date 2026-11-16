@@ -159,16 +159,18 @@ Returns `200` with every voucher issued to that section, oldest first. A section
     "status": "Active",
     "createdAt": "2026-11-15T14:02:11Z",
     "expiresAt": "2027-06-30T23:59:59Z",
-    "lastRequestedAt": "2026-11-15T15:40:03Z"
+    "lastRequestedAt": "2026-11-15T15:40:03Z",
+    "revocationReason": null
   }
 ]
 ```
 
-| Field             | Meaning                                                                          |
-| ----------------- | -------------------------------------------------------------------------------- |
-| `consumed`        | Tokens spent so far. Can exceed `allowance` by the size of the last request.     |
-| `status`          | `Active` or `Revoked`. An expired or used-up voucher still shows `Active`; compare `expiresAt` and `consumed`. |
-| `lastRequestedAt` | Last time the key was presented, including refused requests. `null` if never.    |
+| Field              | Meaning                                                                                                              |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `consumed`         | Tokens spent so far. Can exceed `allowance` by the size of the last request.                                        |
+| `status`           | `Active` or `Revoked`. An expired or used-up voucher still shows `Active`; compare `expiresAt` and `consumed`.      |
+| `lastRequestedAt`  | Last time the key was presented, including refused requests. `null` if never.                                       |
+| `revocationReason` | Why the voucher was withdrawn. `null` until it is revoked. Surrounding whitespace is removed. The first reason stays. |
 
 ### Look up one voucher
 
@@ -183,7 +185,9 @@ Returns `200` with a single voucher in the same shape as above.
 
 ### Revoke a voucher
 
-`POST /admin/vouchers/{id}/revoke`
+`POST /admin/vouchers/{prefix}/revoke`
+
+The prefix is the one on the request log (`as <prefix>`) and on the section list.
 
 ```json
 {
@@ -191,18 +195,17 @@ Returns `200` with a single voucher in the same shape as above.
 }
 ```
 
-| Field    | Required | Meaning                                  |
-| -------- | -------- | ---------------------------------------- |
-| `reason` | Yes      | Why the voucher was withdrawn, for the record. |
+| Field    | Required | Meaning                                                                                          |
+| -------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `reason` | Yes      | Why the voucher was withdrawn. Surrounding whitespace is removed. The first reason is the one kept. |
 
-Takes the voucher's `id`, not its prefix. To get from a prefix in the request log to an id, look the voucher up first.
+Returns `200` with the voucher in the same shape as the lookup, now with `status` `Revoked` and `revocationReason` set. The voucher is refused from its next request on, with `401` and `This voucher has been revoked.` A revoked voucher cannot be reactivated; issue a new one instead. Revoking it again returns `200` and leaves the original reason in place.
 
-Returns `200` with the voucher in the same shape as the lookup, now with `status` `Revoked`. The voucher is refused from its next request on, with `401` and `This voucher has been revoked.` A revoked voucher cannot be reactivated; issue a new one instead.
-
-| Status | Meaning                        |
-| ------ | ------------------------------ |
-| `400`  | `reason` is missing or empty.  |
-| `404`  | No voucher has that id.        |
+| Status | Meaning                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------ |
+| `400`  | `reason` is missing or empty. The voucher is unchanged.                                         |
+| `404`  | No voucher has that prefix.                                                                      |
+| `409`  | More than one voucher has that prefix. Nothing was revoked.                                     |
 
 ## Health
 

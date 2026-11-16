@@ -55,7 +55,7 @@ public class CredentialMiddlewareTests
             VoucherDbContext dbContext = scope.ServiceProvider.GetRequiredService<VoucherDbContext>();
 
             Voucher voucher = await dbContext.Vouchers.SingleAsync();
-            voucher.Revoke();
+            voucher.Revoke("withdrawn");
 
             await dbContext.SaveChangesAsync();
         }

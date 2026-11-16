@@ -145,7 +145,7 @@ _Complete_
   - _COMPLETE_ — unknown
   - _COMPLETE_ — exhausted
   - _COMPLETE_ — expired (mint with an `expiresAt` a minute or two out, then wait)
-  - TODO — revoked (can't test yet, no endpoint; need a way to update sqlite database easily)
+  - TODO — revoked (`POST /admin/vouchers/{prefix}/revoke`)
 
 - _COMPLETE_ — Check that the admin key for vouchers is working (case where we didn't mint one)
 
@@ -257,14 +257,28 @@ No load testing before the pilot starts; a handful of users does not need it. Se
 
 - _COMPLETE_ — `GET /admin/sections/{section}/vouchers` — status and consumption, never the key. See [SectionVouchersEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/SectionVouchersEndpoint.cs)
 - _COMPLETE_ — `GET /admin/vouchers/{prefix}` — one voucher's status and consumption by the prefix the request line logs. `404` when unknown, `409` if two vouchers ever share a prefix (nothing enforces uniqueness). See [VoucherLookupEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/VoucherLookupEndpoint.cs)
-- `POST /admin/vouchers/{id}/revoke` — status flag with reason (`Voucher.Revoke()` exists; the reason does not yet)
+- _COMPLETE_ — `POST /admin/vouchers/{prefix}/revoke` — records a reason. `404` when the prefix is unknown, `409` when it is shared and nothing is revoked. A second revocation keeps the first reason. See [VoucherRevocationEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/VoucherRevocationEndpoint.cs)
 
 **Done when:** the withdrawal use case works end to end, and revocation takes effect on the next request.
 
 ### 9.2 API documentation
 
-- Friendly API documentation (README in API project - link from root README)
+- _COMPLETE_ Friendly API documentation (README in API project - link from root README)
 
+### 9.3 Voucher prefix collisions
+
+The prefix is the first eight hex characters of the key: 32 bits, and nothing enforces uniqueness. It is already the operator's handle — every request line logs it, `GET /admin/vouchers/{prefix}` looks up by it, and `POST /admin/vouchers/{prefix}/revoke` acts on it. Vouchers are never deleted, so the table grows every term.
+
+| Vouchers in the table | Chance any two share a prefix |
+| --------------------- | ----------------------------- |
+| 100                   | ~1 in 1,000,000               |
+| 2,000                 | ~1 in 2,000                   |
+| 5,000                 | ~1 in 350                     |
+| 20,000                | ~1 in 20                      |
+
+Today a collision on lookup or revocation is a `409`, which is correct but means the prefix stops working as a handle for those two vouchers. Revocation refuses on a collision rather than picking one.
+
+**Fix:** lengthen the prefix to twelve characters (48 bits), which makes collisions negligible at any plausible size. Touches `VoucherKeyGenerator`, the `Key_Prefix` column length, a migration, and the `as <prefix>` log line. **Do it before vouchers are issued at scale:** the prefix is persisted at issuance, so lengthening later leaves old vouchers at eight characters and new at twelve, and every lookup and log reader has to cope with both.
 
 ## 10. Real model and load test
 
@@ -332,24 +346,10 @@ Looks like this needs a VS Code extension to be able to use the API:
 
 The pilot is under 20 users; the eventual target is a few thousand concurrent users. Several decisions above were made for the pilot and do not survive the target. None blocks the pilot. Each is listed so it is taken deliberately rather than discovered.
 
-### 12.0
+### 12.1 Issuance alert
 
 Issuance alert (email or webhook). Brings a new config surface (SMTP settings or a webhook URL) into `.env`; don't add it before the feature
 
-### 12.1 Voucher prefix collisions
-
-The prefix is the first eight hex characters of the key: 32 bits, and nothing enforces uniqueness. It is already the operator's handle — every request line logs it, `GET /admin/vouchers/{prefix}` looks up by it, and revoke-by-prefix is the natural next use. Vouchers are never deleted, so the table grows every term.
-
-| Vouchers in the table | Chance any two share a prefix |
-| --------------------- | ----------------------------- |
-| 100                   | ~1 in 1,000,000               |
-| 2,000                 | ~1 in 2,000                   |
-| 5,000                 | ~1 in 350                     |
-| 20,000                | ~1 in 20                      |
-
-Today a collision on lookup is a `409`, which is correct but means the prefix stops working as a handle for those two vouchers. Any endpoint that *acts* by prefix (revoke) must refuse on a collision rather than pick one.
-
-**Fix:** lengthen the prefix to twelve characters (48 bits), which makes collisions negligible at any plausible size. Touches `VoucherKeyGenerator`, the `Key_Prefix` column length, a migration, and the `as <prefix>` log line. **Do it before vouchers are issued at scale:** the prefix is persisted at issuance, so lengthening later leaves old vouchers at eight characters and new at twelve, and every lookup and log reader has to cope with both.
 
 ### 12.2 Concurrency
 

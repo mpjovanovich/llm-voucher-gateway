@@ -45,6 +45,15 @@ Authorization: Bearer {{adminKey}}
 GET {{baseUrl}}/admin/vouchers/{{voucherPrefix}}
 Authorization: Bearer {{adminKey}}
 
+### Revoke a voucher by the prefix a request line logs (admin only)
+POST {{baseUrl}}/admin/vouchers/{{voucherPrefix}}/revoke
+Content-Type: application/json
+Authorization: Bearer {{adminKey}}
+
+{
+  "reason": "Student withdrew from the course."
+}
+
 ### List models (what a chat client asks for before it will send a prompt)
 GET {{baseUrl}}/v1/models
 Authorization: Bearer {{voucherKey}}

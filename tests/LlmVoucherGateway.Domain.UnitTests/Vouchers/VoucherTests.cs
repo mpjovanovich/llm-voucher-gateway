@@ -39,6 +39,7 @@ public class VoucherTests
 
         Assert.Equal(0, issued.Voucher.Consumed);
         Assert.Equal(VoucherStatus.Active, issued.Voucher.Status);
+        Assert.Null(issued.Voucher.RevocationReason);
     }
 
     [Fact]
@@ -99,4 +100,45 @@ public class VoucherTests
         Assert.NotEqual(first.PlaintextKey, second.PlaintextKey);
         Assert.NotEqual(first.Voucher.Key.Hash, second.Voucher.Key.Hash);
     }
+
+    [Fact]
+    public void Revoke_RecordsTheReason()
+    {
+        Voucher voucher = IssuedVoucher();
+
+        voucher.Revoke("  Student withdrew.  ");
+
+        Assert.Equal(VoucherStatus.Revoked, voucher.Status);
+        Assert.Equal("Student withdrew.", voucher.RevocationReason);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Revoke_WithoutAReason_ThrowsAndLeavesTheVoucherActive(string? reason)
+    {
+        Voucher voucher = IssuedVoucher();
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => voucher.Revoke(reason));
+
+        Assert.Equal(nameof(reason), exception.ParamName);
+        Assert.Equal(VoucherStatus.Active, voucher.Status);
+        Assert.Null(voucher.RevocationReason);
+    }
+
+    [Fact]
+    public void Revoke_WhenAlreadyRevoked_KeepsTheFirstReason()
+    {
+        Voucher voucher = IssuedVoucher();
+        voucher.Revoke("Student withdrew.");
+
+        voucher.Revoke("Posted the key publicly.");
+
+        Assert.Equal(VoucherStatus.Revoked, voucher.Status);
+        Assert.Equal("Student withdrew.", voucher.RevocationReason);
+    }
+
+    private static Voucher IssuedVoucher() =>
+        Voucher.Issue("section", 100, FixedUtcNow.AddDays(1), new FakeDateTimeProvider(FixedUtcNow)).Voucher;
 }

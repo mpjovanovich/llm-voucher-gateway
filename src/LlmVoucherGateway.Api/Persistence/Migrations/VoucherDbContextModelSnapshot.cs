@@ -32,6 +32,9 @@ namespace LlmVoucherGateway.Api.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LastRequestedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("RevocationReason")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Section")
                         .HasColumnType("TEXT");
 

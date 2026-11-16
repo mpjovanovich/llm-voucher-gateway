@@ -61,7 +61,7 @@ public class VoucherRequiredEndpointFilterTests
         await using GatewayApplicationFactory factory = new();
 
         string voucherKey = await factory.IssueVoucherKeyAsync();
-        await MutateVoucherAsync(factory, voucher => voucher.Revoke());
+        await MutateVoucherAsync(factory, voucher => voucher.Revoke("withdrawn"));
 
         ChatResponse response = await PostAsync(factory, $"Bearer {voucherKey}");
 
@@ -139,7 +139,7 @@ public class VoucherRequiredEndpointFilterTests
 
     /// <summary>
     /// Changes voucher state directly, so each rejection can be set up in one step rather
-    /// than by spending a voucher down or by a revoke endpoint that does not exist yet.
+    /// than by spending a voucher down or by going through the revoke endpoint.
     /// </summary>
     private static async Task MutateVoucherAsync(
         GatewayApplicationFactory factory,
