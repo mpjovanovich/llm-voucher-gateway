@@ -16,5 +16,6 @@ internal static class AdminEndpoints
             .AddEndpointFilter<AdminOnlyEndpointFilter>();
 
         adminEndpoints.MapVoucherIssuance();
+        adminEndpoints.MapSectionVouchers();
     }
 }

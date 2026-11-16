@@ -253,13 +253,22 @@ No load testing before the pilot starts; a handful of users does not need it. Se
 
 ## 9. Revocation, expiry, admin operations
 
+### 9.1 Add remaining voucher management endpoints
+
+- _COMPLETE_ — `GET /admin/sections/{section}/vouchers` — status and consumption, never the key. See [SectionVouchersEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/SectionVouchersEndpoint.cs)
 - `POST /admin/vouchers/{id}/revoke` — status flag with reason (`Voucher.Revoke()` exists; the reason does not yet)
-- Expiry checked at request time (already enforced by 6e)
-- `GET /admin/sections/{id}/vouchers` — status and consumption
-- Issuance alert (email or webhook). Brings a new config surface (SMTP settings or a webhook URL) into `.env`; don't add it before the feature
-- Friendly API documentation (README in API project - link from root README)
+- Expiry checked at request time (already enforced by 6e). Dev note: Not sure what this note means?
 
 **Done when:** the withdrawal use case works end to end, and revocation takes effect on the next request.
+
+### 9.2 Issuance alert
+
+- Issuance alert (email or webhook). Brings a new config surface (SMTP settings or a webhook URL) into `.env`; don't add it before the feature
+
+### 9.3 API documentation
+
+- Friendly API documentation (README in API project - link from root README)
+
 
 ## 10. Real model and load test
 

@@ -34,6 +34,10 @@ Authorization: Bearer {{adminKey}}
   "expiresAt": "2027-06-30T23:59:59Z"
 }
 
+### List a section's vouchers: status and consumption, never the key (admin only)
+GET {{baseUrl}}/admin/sections/CSCI-101/vouchers
+Authorization: Bearer {{adminKey}}
+
 ### List models (what a chat client asks for before it will send a prompt)
 GET {{baseUrl}}/v1/models
 Authorization: Bearer {{voucherKey}}
