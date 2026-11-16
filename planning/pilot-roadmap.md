@@ -304,8 +304,9 @@ Agent features depend on tool calling, and vLLM does not enable it by default. N
 
 vllm serve <model> \
  --enable-auto-tool-choice \
- --tool-call-parser <parser-for-your-model> \
- --api-key <shared-or-per-student-key>
+ --tool-call-parser <parser-for-your-model>
+
+Update note in API readme about tool usage when this changes.
 
 Agentic capabilities may be limited by the model that we're running.
 

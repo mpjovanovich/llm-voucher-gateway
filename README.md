@@ -43,6 +43,10 @@ Budgeting enforcement is checked before calls are forwarded to vLLM. If no budge
 
 Users never hit vLLM directly. All requests flow through the Gateway API. This solution prioritizes minimal complexity by minting vouchers that have no PII associated with them.
 
+### API Documentation
+
+See the [API Documentation](src/LlmVoucherGateway.Api/README.md)
+
 ### Limitations
 
 There is nothing stopping users from using all of their tokens in a short time period, which may strain the system. If you need this level of complexity, you'll have to extend the application.
