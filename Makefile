@@ -111,8 +111,11 @@ api-check-completion-nostream: require-model
 
 # Requires a voucher to be minted first.
 # make api-check-completion key=<voucher-key>
+# -N (--no-buffer) is load bearing: without it curl flushes its own output
+# buffer in blocks, so a short response arrives in one burst at the end and
+# tells you nothing about whether the gateway streamed it.
 api-check-completion-streaming: require-model
-	curl -sS -w '\n' $(GATEWAY_URL)/v1/chat/completions \
+	curl -N -sS -w '\n' $(GATEWAY_URL)/v1/chat/completions \
 		-H "Authorization: Bearer $(key)" \
 		-H "Content-Type: application/json" \
 		-d '{"model":"$(VLLM_MODEL)","messages":[{"role":"user","content":"Say hello in one sentence."}],"stream":true}'
