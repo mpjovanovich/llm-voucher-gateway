@@ -1,5 +1,3 @@
-# The production stack lives in docker-compose.prod.yml — see
-# planning/vps-deployment.md. The Postgres service that used to live here was removed
-# when persistence moved to SQLite — see Milestone 4 in planning/pilot-roadmap.md.
+# The production stack lives in docker-compose.prod.yml
 #
-# vLLM runs from docker-compose.llm.yml: make run-llm
+# vLLM runs from docker-compose.llm.yml
