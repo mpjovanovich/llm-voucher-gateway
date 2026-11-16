@@ -122,8 +122,8 @@ Returns `200` with one entry per voucher:
 [
   {
     "id": "0b6f1c1e-5d1b-4b0e-9a57-3f1f6f0a2c11",
-    "key": "3fa94c1d...",
-    "prefix": "3fa94c1d",
+    "key": "3fa94c1d7e02...",
+    "prefix": "3fa94c1d7e02",
     "section": "CSCI-101",
     "allowance": 100000,
     "consumed": 0,
@@ -136,7 +136,7 @@ Returns `200` with one entry per voucher:
 
 **Save the `key` values from this response.** The gateway stores only a hash, so a key that is lost cannot be recovered or shown again.
 
-The `prefix` is the first eight characters of the key. It is safe to share, appears in the gateway's request log, and is how a voucher is looked up afterwards.
+The `prefix` is the first twelve characters of the key. It is safe to share, appears in the gateway's request log, and is how a voucher is looked up afterwards.
 
 Invalid input returns `400`.
 
@@ -152,7 +152,7 @@ Returns `200` with every voucher issued to that section, oldest first. A section
 [
   {
     "id": "0b6f1c1e-5d1b-4b0e-9a57-3f1f6f0a2c11",
-    "prefix": "3fa94c1d",
+    "prefix": "3fa94c1d7e02",
     "section": "CSCI-101",
     "allowance": 100000,
     "consumed": 18422,

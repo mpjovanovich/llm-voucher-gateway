@@ -26,7 +26,7 @@ internal static class VoucherRevocationEndpoint
         CancellationToken cancellationToken
     )
     {
-        // The prefix is eight hex characters of a random key and nothing enforces its
+        // The prefix is twelve hex characters of a random key and nothing enforces its
         // uniqueness. Every match is loaded so a collision is refused rather than
         // resolved by whichever row the database returned first. That refusal comes
         // before the reason is considered, so a bad body cannot be mistaken for a

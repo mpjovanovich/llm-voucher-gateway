@@ -76,7 +76,7 @@ internal static class LoggingRegistration
     /// voucher prefix is the handle that works on both paths, and it is what revocation
     /// acts on.
     /// <para>
-    /// The prefix is the first eight characters of the key, so this does disclose part of
+    /// The prefix is the first twelve characters of the key, so this does disclose part of
     /// a secret. Two things make that acceptable: the remaining characters leave the key
     /// unguessable, and the log sink writes into the same directory as the database, so a
     /// reader of these files can already read the voucher table itself.

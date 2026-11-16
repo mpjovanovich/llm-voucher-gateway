@@ -61,7 +61,7 @@ namespace LlmVoucherGateway.Api.Persistence.Migrations
 
                             b1.Property<string>("Prefix")
                                 .IsRequired()
-                                .HasMaxLength(8)
+                                .HasMaxLength(12)
                                 .HasColumnType("TEXT");
 
                             b1.HasKey("VoucherId");

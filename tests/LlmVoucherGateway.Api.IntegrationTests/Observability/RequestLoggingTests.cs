@@ -14,7 +14,7 @@ public class RequestLoggingTests
     private const string ModelsPath = "/v1/models";
 
     // VoucherKeyGenerator takes the prefix from the front of the key.
-    private const int PrefixLength = 8;
+    private const int PrefixLength = 12;
 
     [Fact]
     public async Task Request_LogsOneLineWithMethodPathAndStatus()

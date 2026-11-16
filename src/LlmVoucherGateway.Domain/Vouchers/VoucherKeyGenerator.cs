@@ -5,7 +5,7 @@ namespace LlmVoucherGateway.Domain.Vouchers;
 internal static class VoucherKeyGenerator
 {
     private const int SecretByteLength = 32;
-    private const int PrefixLength = 8;
+    private const int PrefixLength = 12;
 
     public static GeneratedVoucherKey Generate()
     {

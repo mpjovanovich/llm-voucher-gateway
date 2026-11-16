@@ -540,8 +540,10 @@ coverage.xml
 .pytest_cache/
 cover/
 
-# Environments: ignore anything with "env" in the name (case-insensitive)...
-*[Ee][Nn][Vv]*
+# Environment files: .env, .env.local, .env.production, etc.
+.[Ee][Nn][Vv]
+.[Ee][Nn][Vv].*
+*.[Ee][Nn][Vv]
 
-# ...except exactly this file
-!env.example
+# ...except the template
+!.env.example

@@ -26,7 +26,7 @@ internal sealed class VoucherDbContext(DbContextOptions<VoucherDbContext> option
             key.Property(voucherKey => voucherKey.Hash).HasMaxLength(64).IsRequired();
             key.HasIndex(voucherKey => voucherKey.Hash).IsUnique();
 
-            key.Property(voucherKey => voucherKey.Prefix).HasMaxLength(8).IsRequired();
+            key.Property(voucherKey => voucherKey.Prefix).HasMaxLength(12).IsRequired();
         });
 
         voucher.OwnsOne(issuedVoucher => issuedVoucher.Lifetime, lifetime =>

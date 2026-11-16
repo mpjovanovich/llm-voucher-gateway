@@ -26,7 +26,7 @@ internal static class VoucherLookupEndpoint
         CancellationToken cancellationToken
     )
     {
-        // The prefix is eight hex characters of a random key and nothing enforces its
+        // The prefix is twelve hex characters of a random key and nothing enforces its
         // uniqueness, so a collision is possible in principle. Loading every match
         // rather than the first lets that case be reported instead of answered with
         // whichever row the database returned.

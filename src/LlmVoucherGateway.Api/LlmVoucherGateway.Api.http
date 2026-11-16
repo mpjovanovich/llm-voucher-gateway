@@ -22,7 +22,7 @@
 # Paste a `key` from the issuance response here.
 @voucherKey = paste-an-issued-voucher-key-here
 
-# The first eight characters of a key, as logged on each request line.
+# The first twelve characters of a key, as logged on each request line.
 @voucherPrefix = paste-a-prefix-here
 
 ### Issue vouchers (admin only)

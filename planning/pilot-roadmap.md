@@ -267,7 +267,9 @@ No load testing before the pilot starts; a handful of users does not need it. Se
 
 ### 9.3 Voucher prefix collisions
 
-The prefix is the first eight hex characters of the key: 32 bits, and nothing enforces uniqueness. It is already the operator's handle — every request line logs it, `GET /admin/vouchers/{prefix}` looks up by it, and `POST /admin/vouchers/{prefix}/revoke` acts on it. Vouchers are never deleted, so the table grows every term.
+_COMPLETE_ — the prefix is now twelve characters. See [VoucherKeyGenerator.cs](../src/LlmVoucherGateway.Domain/Vouchers/VoucherKeyGenerator.cs) and the `LengthenVoucherPrefix` migration, which is empty because SQLite stores the column as `TEXT` whatever the length. Vouchers issued before it keep eight-character prefixes; none had been issued outside dev.
+
+The prefix was the first eight hex characters of the key: 32 bits, and nothing enforces uniqueness. It is already the operator's handle — every request line logs it, `GET /admin/vouchers/{prefix}` looks up by it, and `POST /admin/vouchers/{prefix}/revoke` acts on it. Vouchers are never deleted, so the table grows every term.
 
 | Vouchers in the table | Chance any two share a prefix |
 | --------------------- | ----------------------------- |
@@ -278,7 +280,7 @@ The prefix is the first eight hex characters of the key: 32 bits, and nothing en
 
 Today a collision on lookup or revocation is a `409`, which is correct but means the prefix stops working as a handle for those two vouchers. Revocation refuses on a collision rather than picking one.
 
-**Fix:** lengthen the prefix to twelve characters (48 bits), which makes collisions negligible at any plausible size. Touches `VoucherKeyGenerator`, the `Key_Prefix` column length, a migration, and the `as <prefix>` log line. **Do it before vouchers are issued at scale:** the prefix is persisted at issuance, so lengthening later leaves old vouchers at eight characters and new at twelve, and every lookup and log reader has to cope with both.
+**Fix (done):** lengthen the prefix to twelve characters (48 bits), which makes collisions negligible at any plausible size. Touches `VoucherKeyGenerator`, the `Key_Prefix` column length, a migration, and the `as <prefix>` log line. **Do it before vouchers are issued at scale:** the prefix is persisted at issuance, so lengthening later leaves old vouchers at eight characters and new at twelve, and every lookup and log reader has to cope with both.
 
 ## 10. Real model and load test
 
