@@ -13,7 +13,7 @@ This is a temporary working document. Settled detail lives in the code and tests
 - **GPU box** — runs vLLM. Any dev machine with an NVIDIA GPU. The only place real responses come from.
 - **Non-GPU machine** — AVX2 only, so it cannot run vLLM's CPU backend. No local inference.
 
-**Requires live vLLM:** Milestones 1, 2, 3, 6g, 10. Everything else can proceed without a GPU.
+**Requires the GPU box:** Milestones 1, 2, 3, 6g, 8A, 10. **Requires the VPS:** 8B, 8C. Everything else can proceed without a GPU.
 
 The dev GPU box is lower spec than production. These milestones prove shape and plumbing, not performance; performance is Milestone 10.
 
@@ -186,121 +186,68 @@ _Complete_ — every per-machine value lives in `.env`, and [.env.example](../.e
 
 See [vps-deployment.md](vps-deployment.md).
 
-Note - Current dev machine:
+| Machine        | GPU            | RAM  |
+| -------------- | -------------- | ---- |
+| Dev box (WSL2) | RTX 3060, 12GB | 32GB |
+| Pilot server   | RTX 5060, 8GB  | 64GB |
 
-```
-Geforce RTX 3060 12GB
-32GB RAM
-```
+Three parts, split by what each check needs rather than by service. **8A** needs only the dev GPU box. **8B** needs the VPS and a domain. **8C** is operations, once it works.
 
-Note - Pilot (prod) machine:
+Sequence: 8A first. Then Milestone 9 while the VPS is procured — it does not depend on deployment, and the rehearsal has caught the failures it was meant to catch early. 8B as soon as the VPS exists, then 8C. Milestone 11 is last.
 
-```
-GeForce RTX 5060 8GB vRAM
-64GB RAM
-```
+### Already in code
 
-Bring the stack up one service at a time, inside out, so each failure has one suspect. Components for production server are listed below. These are the sub-milestones.
+Written and tested locally, each with its deployment check in 8A and 8B.
 
-Every `docker compose` command below means `docker compose -f docker-compose.prod.yml ...`, run from the checkout on the server. The Makefile wraps the lifecycle ones — `make deploy`, `run-prod`, `down-prod`, `ps-prod`, `logs-prod service=<name>` — and the bare form is spelled out here where a step acts on one service.
+- One log line per request with client address, and a correlation id on every line from the same request, also returned as `X-Request-Id` — [LoggingRegistration.cs](../src/LlmVoucherGateway.Api/Observability/LoggingRegistration.cs), [CorrelationIdMiddleware.cs](../src/LlmVoucherGateway.Api/Middleware/CorrelationIdMiddleware.cs)
+- JSON file sink to `/data/logs`, daily, 30 kept — [appsettings.Production.json](../src/LlmVoucherGateway.Api/appsettings.Production.json). Written, never run under Docker
+- `/health`: `200` when vLLM is reachable, `503` when not; unauthenticated, and hidden from the internet by the [Caddyfile](../Caddyfile) — [InferenceHealthCheck.cs](../src/LlmVoucherGateway.Api/Inference/InferenceHealthCheck.cs)
+- Unhandled exceptions on `/v1` leave in the OpenAI envelope, and vLLM unreachable is `502 server_error` — [ExceptionHandler.cs](../src/LlmVoucherGateway.Api/ExceptionHandlers/ExceptionHandler.cs)
+- `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` on the gateway; the Caddyfile passes `caddy validate` with example hostnames; sqlite-web under `profiles: [tools]`, never run
 
-### 8a. Server ready
+### 8A. Local rehearsal — dev GPU box, no domain, no second machine
 
-- Install Docker and the NVIDIA Container Toolkit. `sudo systemctl enable docker`, so Docker starts on boot
-- Firewall: allow SSH **before** turning `ufw` on, then 80 and 443
-- Clone the repo. Create the data directory: `sudo mkdir -p /srv/llm-gateway/data && sudo chown 1654 /srv/llm-gateway/data`
-- Server `.env`: `cp .env.example .env`, then set `ADMIN_KEY` (`openssl rand -base64 32`), `LLM_HOSTNAME`, `CHAT_HOSTNAME`, `ACME_EMAIL`, and `VLLM_MODEL`, `VLLM_GPU_MEMORY_UTILIZATION` and `VLLM_MAX_MODEL_LEN` for this hardware. Compose refuses to start until all of them are set. Add `GATEWAY_URL=http://localhost:8080` so the Makefile's `api-*` targets hit the production container. The pinned-memory switch defaults to 0, which is what this host wants. `chmod 600 .env`
+Proves the production compose contract before a VPS exists. The gateway and web images have never been built; that is the step most likely to fail, and a Dockerfile is a ten-minute fix here and a miserable one over SSH.
 
-**Verify:** `docker run --rm --gpus all ubuntu nvidia-smi` shows the GPU, and `docker compose config --quiet` prints nothing.
+Every `docker compose` below means `docker compose -f docker-compose.prod.yml`. Not `make deploy`, which runs `git pull` first. One service at a time, inside out, so each failure has one suspect.
 
-### 8b. vLLM, inside the box only
+What the box cannot stand in for, being WSL2: firewall, boot, systemd, and reachability from another machine. Every "not reachable from outside" check reduces to "bound to `127.0.0.1`", which `docker compose ps` shows. 
 
-- `docker compose up -d llm-server`, then `docker compose logs -f llm-server` until it reports the server is listening. The first start downloads the model and takes a while
+1. **Prepare.** `make down` — the GPU holds one vLLM. In `.env`: `LLM_HOSTNAME=llm.localhost`, `CHAT_HOSTNAME=chat.localhost`, any `ACME_EMAIL` (Caddy issues locally-trusted certificates for `*.localhost` and never contacts Let's Encrypt), `GATEWAY_DATA_DIR` at a local directory you `chown 1654`, `GATEWAY_URL=http://localhost:8080`. Add `127.0.0.1 llm.localhost chat.localhost` to `/etc/hosts`; they do not resolve in WSL otherwise. `docker compose config --quiet` prints nothing
+2. **Build.** `docker compose build`. Both Dockerfiles build
+3. **vLLM.** `up -d llm-server`. A throwaway container on the network can curl `http://llm-server:8000/v1/models`; `curl localhost:8000` is refused
+4. **Gateway.** `up -d gateway`. `make api-mint-voucher` returns a voucher and `make api-check-completion-streaming key=...` streams. `vouchers.db` appears in `GATEWAY_DATA_DIR` owned by 1654. After `restart gateway` the same voucher still works. `docker compose ps` shows `127.0.0.1:8080`
+5. **Caddy and web.** `up -d`. `curl -k https://llm.localhost/v1/models` → OpenAI-shaped `401`; `curl -k https://llm.localhost/health` → `404`; `curl localhost:8080/health` → `200`. `https://chat.localhost` in a Windows browser, past the certificate warning: a voucher lists the model and a chat streams
+6. **Streaming through Caddy.** Milestone 3's per-chunk timing with `curl -k -N` against `https://llm.localhost/v1`. Chunks arrive spread over the generation, not all at the end. Caddy's behaviour does not depend on who signed the certificate, so this is the proof, not a rehearsal of it
+7. **Forwarded headers.** The request lines from step 5 carry the address Caddy saw the connection from — the Docker bridge gateway, ending in `.1`, for requests from this box — rather than the caddy container's own address (`docker inspect` shows which is which). Weak proof; the real one is your public IP in 8B
+8. **Logs.** A file appears in `$GATEWAY_DATA_DIR/logs`, keeps its lines after `up -d --build` recreates the gateway, and `jq` reads it. `docker compose logs caddy` and `logs llm-server` contain no voucher key, `Authorization` header or prompt text
+9. **Health.** `stop llm-server` → `/health` is `503` and `/v1/models` is `502` in the OpenAI envelope; `start llm-server` → `200` again
+10. **sqlite-web.** `--profile tools up -d sqlite-web`; `http://localhost:8081` shows the tables; `--profile tools down`. Afterwards the gateway can still write — the `-wal` and `-shm` files must not have become root's
+11. **Persistence.** `down`, then `up -d`: the model is not downloaded again and the voucher still works
 
-**Verify:**
+**Done when:** all eleven pass, and whatever broke is fixed and committed.
 
-- Reachable on the Docker network: the throwaway curl against `http://llm-server:8000/v1/models` lists the model
-- Not reachable from the host: `curl localhost:8000` is refused
+### 8B. VPS bring-up — needs the server and a domain
 
-### 8c. Gateway, on host loopback
+Only what 8A could not prove.
 
-- The Makefile's `api-*` targets read `GATEWAY_URL` and `ADMIN_KEY` from `.env` (set in 8a)
-- `docker compose up -d --build gateway`
+1. **Server.** Docker and the NVIDIA Container Toolkit; `sudo systemctl enable docker`. `ufw`: allow SSH **before** enabling it, then 80 and 443. `docker run --rm --gpus all ubuntu nvidia-smi` shows the GPU
+2. **Checkout.** Clone. `sudo mkdir -p /srv/llm-gateway/data && sudo chown 1654 /srv/llm-gateway/data`. `.env` from `.env.example` with the real hostnames, `ACME_EMAIL`, `ADMIN_KEY` (`openssl rand -base64 32`), `GATEWAY_URL=http://localhost:8080`, and the vLLM values for the 8GB card — this is the first real model load, and `VLLM_MAX_MODEL_LEN` decides whether the KV cache fits (Milestone 10's question, answered here first). `chmod 600 .env`. `docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile`
+3. **DNS.** A records for both hostnames, **grey cloud (DNS only)** in Cloudflare. The proxy is not in the path, so there is no streaming cut-off to test; just confirm the cloud is grey
+4. **Up.** `make deploy && make run-prod`, then `make logs-prod service=llm-server` until it is listening. The first start downloads the model
+5. **From your laptop.** `curl https://llm.<domain>/v1/models` → OpenAI-shaped `401`, no certificate warning; `/health` → `404`. `https://chat.<domain>` streams a chat. `make logs-prod service=gateway` shows your public IP in the request line, not a `172.x` address
+6. **Aider.** Pointed at `https://llm.<domain>/v1`, completes a small task. Each task sends two requests, and both meter
+7. **Reboot.** `sudo reboot`. With no manual steps, `make ps-prod` shows all four services and step 5 passes again
 
-**Verify:**
+**Done when:** steps 5–7 pass.
 
-- `make api-mint-voucher` returns a voucher, and `make api-check-completion-streaming key=...` streams a reply
-- `/srv/llm-gateway/data/vouchers.db` exists on the host
-- `docker compose restart gateway`, then the same voucher still works. That proves the database survives the container
-- From another machine, `curl http://<server-ip>:8080` fails
+### 8C. Operations — once it works
 
-### 8d. Caddy, DNS and HTTPS
+1. **Backups.** Daily host cron running `sqlite3 ... ".backup ..."` per [vps-deployment.md](vps-deployment.md#database). Run it by hand once, then `sqlite3 <backup> "select count(*) from Vouchers"` returns the live count. A backup is not proven until it has been read back
+2. **Remote sqlite-web.** `ssh -L 8081:localhost:8081 <server>`, then `http://localhost:8081` on the laptop
+3. **Runbook.** In [vps-deployment.md](vps-deployment.md), for "it's down": which of `make ps-prod`, `/health` and each service's logs to check, in what order; how to restart one service; and `df` plus `ls -l /srv/llm-gateway/data` for the database, since `/health` deliberately does not check SQLite — it is a file, and its failures are disk and ownership
 
-- DNS: A records for both hostnames pointing at the server, **grey cloud (DNS only)** in Cloudflare
-- The [Caddyfile](../Caddyfile) passes `caddy validate` on the dev box, with example hostnames. Re-run it on the server against the real `.env`: `docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile`
-- `docker compose up -d --build`. This also starts `web`, which has had nothing to test it through until now
-
-**Verify:**
-
-- From your laptop, `curl https://llm.example.edu/v1/models` returns the OpenAI-shaped `401`, with no certificate warning
-- `curl https://llm.example.edu/health` returns `404`. Caddy hides the probe from the internet; it is unauthenticated by design and stays reachable on `localhost:8080` over SSH
-- `https://chat.example.edu` in a browser: a voucher pasted into the sidebar lists the model, and a chat streams
-
-### 8e. Streaming through Caddy
-
-- Re-run Milestone 3's per-chunk timing against `https://llm.example.edu/v1`
-- Point Aider at the same URL and run a small task
-
-**Verify:** chunks arrive spread out over the generation, not all at once at the end. Aider completes a task. This and 8j are the milestone's "Done when".
-
-### 8f. Real client addresses and request logs
-
-Code change, tested locally, then deployed. **Code complete; the Verify below is the deployment check.**
-
-- _COMPLETE_ — `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` in the gateway's `environment`
-- _COMPLETE_ — One log line per request with method, path, status, duration and client address. The path excludes the query string. See [LoggingRegistration.cs](../src/LlmVoucherGateway.Api/Observability/LoggingRegistration.cs)
-- _COMPLETE_ — A correlation ID on every log line from the same request, also returned to the caller as `X-Request-Id`. It is the framework's request id, not a client-supplied header. See [CorrelationIdMiddleware.cs](../src/LlmVoucherGateway.Api/Middleware/CorrelationIdMiddleware.cs) and [RequestLoggingTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Observability/RequestLoggingTests.cs)
-- Checked locally in Production mode with a hand-set `X-Forwarded-For`: the request line and the rejection line both showed the forwarded address. Through Caddy is still unproven
-
-**Verify:** `docker compose logs gateway` after a request from your laptop shows your public IP, not a `172.x` Docker address, and its lines share one correlation ID.
-
-### 8g. Logs that outlive containers
-
-- _COMPLETE_ (written, unrun) — File sink to `/data/logs`, compact JSON, rolled daily, 30 days kept, in [appsettings.Production.json](../src/LlmVoucherGateway.Api/appsettings.Production.json). `Console` is repeated there at index 0 on purpose: configuration merges arrays by index, so a file starting with the File sink would replace the console sink and `docker compose logs gateway` would go quiet
-- Read Caddy's and vLLM's logs after a few real requests and confirm neither contains a voucher key, an `Authorization` header or prompt text
-
-**Verify:** a file appears in `/srv/llm-gateway/data/logs/`, still has its lines after `docker compose up -d --build` recreates the gateway, and `jq` can read it.
-
-### 8h. Database backups and ad-hoc access
-
-- Daily host cron running `sqlite3 ... ".backup ..."`, per [vps-deployment.md](vps-deployment.md#database)
-- _COMPLETE_ (written, unrun) — sqlite-web as a Compose service under `profiles: [tools]`, published on `127.0.0.1:8081` only. Start it with `--profile tools`; the commands are in the compose file
-
-**Verify:**
-
-- Run the backup by hand once, then `sqlite3 <backup> "select count(*) from Vouchers"` returns the live count. A backup isn't proven until it has been read back
-- Through `ssh -L 8081:localhost:8081 server`, `http://localhost:8081` on your laptop shows the tables
-
-### 8i. Health and error shape
-
-Code change, tested locally, then deployed. **Code complete and checked against the dev vLLM; the Verify below is the deployment check.**
-
-- _COMPLETE_ — `/health`: `200` when the gateway can reach vLLM, `503` when it can't. Unauthenticated; probes vLLM's own `/health` with a 5 second limit. See [InferenceHealthCheck.cs](../src/LlmVoucherGateway.Api/Inference/InferenceHealthCheck.cs) and [HealthEndpointTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Inference/HealthEndpointTests.cs)
-- _COMPLETE_ — vLLM unreachable on `/v1` is `502` with type `server_error`, not `500`, so a harness and an operator can tell the gateway itself is fine
-- _COMPLETE_ — Unhandled exceptions on `/v1` return the OpenAI error shape instead of ProblemDetails; admin routes keep ProblemDetails. See [ExceptionHandler.cs](../src/LlmVoucherGateway.Api/ExceptionHandlers/ExceptionHandler.cs) and [UnhandledExceptionShapeTests.cs](../tests/LlmVoucherGateway.Api.IntegrationTests/Errors/UnhandledExceptionShapeTests.cs)
-
-**Verify:** `curl localhost:8080/health` returns `200`. After `docker compose stop llm-server` it returns `503`, and after `start` it returns `200` again.
-
-### 8j. Reboot, and the "it's down" page
-
-- `sudo reboot`
-- Write a short runbook in [vps-deployment.md](vps-deployment.md) for when it's down: which of `docker compose ps`, `/health`, and the logs for each service to check, in what order, and how to restart one service
-
-**Verify:** after the reboot, with no manual steps, `docker compose ps` shows all four services running, and 8e's streaming check passes again.
-
-### Post-milestone considerations
-
-We will not have done any load testing when this first goes out; this is fine for a pilot with a small number of users. Appropriate settings are to be determined in milestone 10.
+No load testing before the pilot starts; a handful of users does not need it. Settings are Milestone 10's.
 
 ---
 
