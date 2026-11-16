@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using LlmVoucherGateway.Api.Middleware;
 using Serilog.Events;
 
@@ -11,6 +12,9 @@ namespace LlmVoucherGateway.Api.IntegrationTests.Observability;
 public class RequestLoggingTests
 {
     private const string ModelsPath = "/v1/models";
+
+    // VoucherKeyGenerator takes the prefix from the front of the key.
+    private const int PrefixLength = 8;
 
     [Fact]
     public async Task Request_LogsOneLineWithMethodPathAndStatus()
@@ -78,6 +82,53 @@ public class RequestLoggingTests
         Assert.NotEqual(
             Assert.Single(first.Headers.GetValues(CorrelationIdMiddleware.HeaderName)),
             Assert.Single(second.Headers.GetValues(CorrelationIdMiddleware.HeaderName))
+        );
+    }
+
+    [Fact]
+    public async Task Request_WithAVoucher_LogsItsPrefixAndNotItsKey()
+    {
+        await using GatewayApplicationFactory factory = new();
+        string voucherKey = await factory.IssueVoucherKeyAsync();
+        using HttpClient client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", voucherKey);
+
+        using HttpResponseMessage response = await client.GetAsync(ModelsPath);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // The prefix is the handle for grouping one caller's requests; the key is the
+        // secret and must never appear, prefix or not.
+        Assert.Contains($"as {voucherKey[..PrefixLength]}", factory.LogOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain(voucherKey, factory.LogOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Request_WithNoCredential_NamesNoVoucher()
+    {
+        await using GatewayApplicationFactory factory = new();
+        using HttpClient client = factory.CreateClient();
+
+        using HttpResponseMessage response = await client.GetAsync(ModelsPath);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains("responded 401 in", factory.LogOutput, StringComparison.Ordinal);
+        Assert.Contains("as unknown", factory.LogOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Request_WithAnAdminKey_LogsTheCallerAsAdminAndNotTheKey()
+    {
+        await using GatewayApplicationFactory factory = new();
+        using HttpClient client = factory.CreateAdminClient();
+
+        using HttpResponseMessage response = await client.GetAsync(ModelsPath);
+
+        // An admin key does not pass /v1, but it still resolves, so the line names it.
+        Assert.Contains("as admin", factory.LogOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            GatewayApplicationFactory.ConfiguredAdminKey,
+            factory.LogOutput,
+            StringComparison.Ordinal
         );
     }
 

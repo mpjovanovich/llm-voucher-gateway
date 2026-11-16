@@ -50,7 +50,7 @@ Run with `make run-llm && make run-api`.
 - **Status map:** unknown, revoked and expired are `401 invalid_request_error`; exhausted is `403 insufficient_quota`. `403` was chosen over `402` and `429`. `code` is numeric, matching vLLM rather than OpenAI. Admin `401`s keep empty bodies because only operators with curl see them.
 - **An admin key does not pass `/v1/chat/completions` or `/v1/models`.** Admitting it would leave an unmetered path to the GPU. To exercise the endpoint, mint a voucher.
 - **Exhausted means consumed is at or over the allowance.** Consumption is recorded after a request, so `Consumed` can exceed `Allowance`. That overshoot is accepted under soft limits.
-- **Never logged:** voucher keys, admin keys, attempted bearer tokens, voucher ids or prefixes. Time plus source address is the handle for querying the database.
+- **Never logged:** voucher keys, admin keys, attempted bearer tokens, voucher ids. **The voucher prefix is logged** on every request line, as `as <prefix>` (`as admin` for an admin key, `as unknown` when no credential resolved) — see [LoggingRegistration.cs](../src/LlmVoucherGateway.Api/Observability/LoggingRegistration.cs). Source address alone was the original handle, and it does not survive the Streamlit UI: that traffic reaches the gateway from the web container, so every browser user shares one address, while only a harness through Caddy carries its own. The prefix is the handle that works on both paths and the thing revocation acts on. It is the first eight characters of the key, so it discloses part of a secret; accepted because the rest leaves the key unguessable and the log sink writes to an internal file.
 
 ---
 
