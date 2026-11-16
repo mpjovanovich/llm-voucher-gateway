@@ -17,5 +17,6 @@ internal static class AdminEndpoints
 
         adminEndpoints.MapVoucherIssuance();
         adminEndpoints.MapSectionVouchers();
+        adminEndpoints.MapVoucherLookup();
     }
 }

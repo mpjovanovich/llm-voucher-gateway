@@ -22,6 +22,9 @@
 # Paste a `key` from the issuance response here.
 @voucherKey = paste-an-issued-voucher-key-here
 
+# The first eight characters of a key, as logged on each request line.
+@voucherPrefix = paste-a-prefix-here
+
 ### Issue vouchers (admin only)
 POST {{baseUrl}}/admin/vouchers
 Content-Type: application/json
@@ -36,6 +39,10 @@ Authorization: Bearer {{adminKey}}
 
 ### List a section's vouchers: status and consumption, never the key (admin only)
 GET {{baseUrl}}/admin/sections/CSCI-101/vouchers
+Authorization: Bearer {{adminKey}}
+
+### Look up one voucher by the prefix a request line logs (admin only)
+GET {{baseUrl}}/admin/vouchers/{{voucherPrefix}}
 Authorization: Bearer {{adminKey}}
 
 ### List models (what a chat client asks for before it will send a prompt)

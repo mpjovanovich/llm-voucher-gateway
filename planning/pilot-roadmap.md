@@ -256,16 +256,12 @@ No load testing before the pilot starts; a handful of users does not need it. Se
 ### 9.1 Add remaining voucher management endpoints
 
 - _COMPLETE_ — `GET /admin/sections/{section}/vouchers` — status and consumption, never the key. See [SectionVouchersEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/SectionVouchersEndpoint.cs)
+- _COMPLETE_ — `GET /admin/vouchers/{prefix}` — one voucher's status and consumption by the prefix the request line logs. `404` when unknown, `409` if two vouchers ever share a prefix (nothing enforces uniqueness). See [VoucherLookupEndpoint.cs](../src/LlmVoucherGateway.Api/Endpoints/VoucherLookupEndpoint.cs)
 - `POST /admin/vouchers/{id}/revoke` — status flag with reason (`Voucher.Revoke()` exists; the reason does not yet)
-- Expiry checked at request time (already enforced by 6e). Dev note: Not sure what this note means?
 
 **Done when:** the withdrawal use case works end to end, and revocation takes effect on the next request.
 
-### 9.2 Issuance alert
-
-- Issuance alert (email or webhook). Brings a new config surface (SMTP settings or a webhook URL) into `.env`; don't add it before the feature
-
-### 9.3 API documentation
+### 9.2 API documentation
 
 - Friendly API documentation (README in API project - link from root README)
 
@@ -328,3 +324,39 @@ Looks like this needs a VS Code extension to be able to use the API:
 - OAI Compatible Provider for Copilot
   - johnny-zhao.oai-compatible-copilot
   - MIT licensed
+
+---
+
+## 12. Scaling past the pilot
+
+The pilot is under 20 users; the eventual target is a few thousand concurrent users. Several decisions above were made for the pilot and do not survive the target. None blocks the pilot. Each is listed so it is taken deliberately rather than discovered.
+
+### 12.0
+
+Issuance alert (email or webhook). Brings a new config surface (SMTP settings or a webhook URL) into `.env`; don't add it before the feature
+
+### 12.1 Voucher prefix collisions
+
+The prefix is the first eight hex characters of the key: 32 bits, and nothing enforces uniqueness. It is already the operator's handle — every request line logs it, `GET /admin/vouchers/{prefix}` looks up by it, and revoke-by-prefix is the natural next use. Vouchers are never deleted, so the table grows every term.
+
+| Vouchers in the table | Chance any two share a prefix |
+| --------------------- | ----------------------------- |
+| 100                   | ~1 in 1,000,000               |
+| 2,000                 | ~1 in 2,000                   |
+| 5,000                 | ~1 in 350                     |
+| 20,000                | ~1 in 20                      |
+
+Today a collision on lookup is a `409`, which is correct but means the prefix stops working as a handle for those two vouchers. Any endpoint that *acts* by prefix (revoke) must refuse on a collision rather than pick one.
+
+**Fix:** lengthen the prefix to twelve characters (48 bits), which makes collisions negligible at any plausible size. Touches `VoucherKeyGenerator`, the `Key_Prefix` column length, a migration, and the `as <prefix>` log line. **Do it before vouchers are issued at scale:** the prefix is persisted at issuance, so lengthening later leaves old vouchers at eight characters and new at twelve, and every lookup and log reader has to cope with both.
+
+### 12.2 Concurrency
+
+The system was not designed with concurrency in mind. Known consequences:
+
+- **Lost charges.** Milestone 7 accepts that overlapping requests on one voucher overwrite each other's `Consumed` (load on entry, save an absolute total). Tolerable for one student with two windows; with thousands of users and agentic harnesses firing parallel requests it under-meters systematically. Fix: a concurrency token on `Consumed` with reload-and-retry, or an atomic `UPDATE ... SET Consumed = Consumed + @tokens`.
+- **Single writer.** SQLite serializes writes and the deployment is one gateway instance with migrations applied at startup. Thousands of concurrent streams, or a second instance for availability, is the Postgres trigger named in the Milestone 4 decisions. The upgrade path is a connection string and regenerated migrations.
+- **Lookup per request, no cache.** Chosen so revocation takes effect immediately. One indexed read per request is still cheap at this scale on Postgres; revisit only with Milestone 10's numbers.
+- **GPU contention.** Independent of the gateway: a few thousand concurrent users on one 8GB card is a vLLM capacity question (KV cache, queueing, time to first token), answered by Milestone 10's load test on the real hardware.
+
+**Done when:** the prefix is twelve characters, consumption recording is atomic under concurrent requests on one voucher (with a test that proves it), and the Postgres move has been made or explicitly deferred with a load number behind it.
