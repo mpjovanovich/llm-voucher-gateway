@@ -126,7 +126,7 @@ services:
     restart: "no"
     logging: *logging
     ports:
-      - "127.0.0.1:8081:8080"
+      - "127.0.0.1:${SQLITE_WEB_PORT:-8081}:8080"
     volumes:
       - ${GATEWAY_DATA_DIR:-/srv/llm-gateway/data}:/data
 
