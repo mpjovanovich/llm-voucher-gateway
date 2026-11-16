@@ -90,7 +90,7 @@ The gateway is a product in its own right, not only Streamlit's backend. It is a
 
 - `/admin` is public over HTTPS and protected by the admin key alone
 - The loopback port is invisible from outside. It lets the admin skip Caddy and TLS, and it tells a proxy problem apart from a gateway problem
-- The Makefile's `api-*` targets still hardcode `localhost:5131` and `dev-admin-key`. A `GATEWAY_URL` variable defaulting to the dev address, and `ADMIN_KEY` from `.env`, let the same targets run against `localhost:8080` on the server — the first step of [Milestone 8c](pilot-roadmap.md#8c-gateway-on-host-loopback)
+- The Makefile's `api-*` targets read `GATEWAY_URL` and `ADMIN_KEY` from `.env`, so setting `GATEWAY_URL=http://localhost:8080` points the same targets at the production container over loopback
 
 **Docker-published ports bypass `ufw`.** Docker writes its own iptables rules. The only protection for `gateway` and `llm-server` is not publishing them beyond loopback.
 
